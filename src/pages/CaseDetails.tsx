@@ -1,8 +1,6 @@
-import Layout from "../components/Layout";
-
 export default function CaseDetails() {
   return (
-    <Layout title="Case Details">
+    <>
       <div className="flex justify-between items-end mb-4 mt-8">
         <div className="flex items-center space-x-3">
           <span className="font-data-mono text-data-mono bg-surface-container-low border border-surface-variant px-2 py-1 rounded text-secondary">ID: GC-2023-0891</span>
@@ -108,6 +106,6 @@ export default function CaseDetails() {
 
         <div className="h-2 bg-primary w-full opacity-10"></div>
       </div>
-    </Layout>
+    </>
   );
 }

@@ -88,6 +88,26 @@
   .data-card {
     @apply bg-surface border-outline-variant border rounded-lg text-on-surface;
   }
+
+  .page-transition {
+    animation: page-maximize 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: center top;
+    will-change: opacity, transform, filter;
+  }
+
+  .nav-active-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 1rem;
+    height: 3rem;
+    border-left: 4px solid var(--color-primary);
+    border-radius: 0 8px 8px 0;
+    background-color: var(--color-surface);
+    box-shadow: 0 1px 3px rgba(31, 41, 55, 0.12);
+    transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
   
   .zebra-row:nth-child(even) {
     @apply bg-background;
@@ -123,4 +143,32 @@ body {
   background-color: var(--color-background);
   color: var(--color-on-surface);
   @apply m-0 p-0 transition-colors duration-200;
+}
+
+@keyframes page-maximize {
+  0% {
+    opacity: 0;
+    transform: scale(0.965) translateY(14px);
+    filter: blur(6px);
+  }
+
+  60% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation: none;
+  }
+
+  .nav-active-indicator {
+    transition: none;
+  }
 }
