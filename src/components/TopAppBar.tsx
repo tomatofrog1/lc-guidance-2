@@ -2,9 +2,10 @@ import { Link } from "react-router-dom";
 
 interface TopAppBarProps {
   title: string;
+  onNewCaseClick?: () => void;
 }
 
-export default function TopAppBar({ title }: TopAppBarProps) {
+export default function TopAppBar({ title, onNewCaseClick }: TopAppBarProps) {
   return (
     <header className="full-width h-16 sticky top-0 bg-surface-bright dark:bg-surface-container border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page ml-sidebar-width w-[calc(100%-240px)] z-10 transition-all duration-150 ease-in-out">
       <div className="flex items-center gap-4">
@@ -46,9 +47,11 @@ export default function TopAppBar({ title }: TopAppBarProps) {
         <button className="p-2 text-secondary hover:text-primary dark:hover:text-primary-fixed-dim transition-all rounded-full hover:bg-surface-container">
           <span className="material-symbols-outlined">settings</span>
         </button>
-        <Link to="/new" className="bg-primary text-white px-4 py-2 rounded-DEFAULT font-body-md text-body-md font-medium hover:bg-on-primary-fixed-variant transition-colors ml-2">
-          + New Case
-        </Link>
+        {title !== "Summary & Reports" && (
+          <button onClick={onNewCaseClick} className="bg-primary text-white px-4 py-2 rounded-DEFAULT font-body-md text-body-md font-medium hover:bg-on-primary-fixed-variant transition-colors ml-2">
+            + New Case
+          </button>
+        )}
       </div>
     </header>
   );

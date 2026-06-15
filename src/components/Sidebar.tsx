@@ -32,10 +32,6 @@ export default function Sidebar() {
           <span className="material-symbols-outlined" style={{ fontVariationSettings: `'FILL' ${getIconFill("/catalog")}` }}>folder_open</span>
           <span className="font-body-md text-body-md font-medium">Case Catalog</span>
         </Link>
-        <Link to="/new" className={getLinkClasses("/new")}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: `'FILL' ${getIconFill("/new")}` }}>add_box</span>
-          <span className="font-body-md text-body-md font-medium">File New Case</span>
-        </Link>
         <Link to="/" className={getLinkClasses("/")}>
           <span className="material-symbols-outlined" style={{ fontVariationSettings: `'FILL' ${getIconFill("/")}` }}>assessment</span>
           <span className="font-body-md text-body-md font-medium">Summary & Reports</span>
