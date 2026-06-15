@@ -1,10 +1,9 @@
-import Layout from "../components/Layout";
 import { useNavigate } from "react-router-dom";
 
 export default function CaseCatalog() {
   const navigate = useNavigate();
   return (
-    <Layout title="Guidance Office">
+    <>
       <div className="flex justify-between items-end mb-6">
         <h2 className="font-section-header text-section-header text-on-surface">Case Catalog</h2>
         <div className="flex gap-3">
@@ -168,6 +167,6 @@ export default function CaseCatalog() {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

@@ -1,8 +1,6 @@
-import Layout from "../components/Layout";
-
 export default function SummaryReports() {
   return (
-    <Layout title="Summary & Reports">
+    <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="data-card p-6 flex flex-col justify-between">
           <div className="flex justify-between items-start mb-4">
@@ -195,6 +193,6 @@ export default function SummaryReports() {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }
