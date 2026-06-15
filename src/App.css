@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-background: #F3F3F3;
+    --color-surface: #ffffff;
+    --color-surface-container: #eeeeee;
+    --color-surface-container-low: #f3f3f3;
+    --color-surface-container-high: #e8e8e8;
+    --color-surface-bright: #ffffff;
+    --color-on-surface: #1F2937;
+    --color-on-surface-variant: #444652;
+    --color-outline: #747683;
+    --color-outline-variant: #c4c6d4;
+    --color-primary: #002F87;
+    --color-primary-container: #002f87;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #ffffff;
+    --color-secondary: #585f6c;
+    --color-secondary-container: #dce2f3;
+    --color-on-secondary-container: #5e6572;
+    --color-surface-variant: #e2e2e2;
+    --color-error: #ba1a1a;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+
+    --badge-resolved-bg: #dcfce7;
+    --badge-resolved-text: #15803d;
+    --badge-resolved-border: #22c55e;
+    
+    --badge-pending-bg: #fef3c7;
+    --badge-pending-text: #b45309;
+    --badge-pending-border: #f59e0b;
+
+    --badge-reprimand-bg: #fee2e2;
+    --badge-reprimand-text: #b91c1c;
+    --badge-reprimand-border: #ef4444;
+    
+    --case-id-bg: #f9fafb;
+    --case-id-border: #e5e7eb;
+    --case-id-text: #374151;
+  }
+
+  html.dark {
+    --color-background: #101418;
+    --color-surface: #1B2128;
+    --color-surface-container: #222a33;
+    --color-surface-container-low: #1e252d;
+    --color-surface-container-high: #2d3743;
+    --color-surface-bright: #262f3a;
+    --color-on-surface: #F3F3F3;
+    --color-on-surface-variant: #a4aab4;
+    --color-outline: #586170;
+    --color-outline-variant: #374151;
+    --color-primary: #3B5FCB;
+    --color-primary-container: #284496;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #e6eeff;
+    --color-secondary: #8d95a5;
+    --color-secondary-container: #374358;
+    --color-on-secondary-container: #ccd4e8;
+    --color-surface-variant: #374151;
+    --color-error: #ffb4ab;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
+
+    --badge-resolved-bg: rgba(52, 160, 106, 0.15);
+    --badge-resolved-text: #34A06A;
+    --badge-resolved-border: rgba(52, 160, 106, 0.5);
+    
+    --badge-pending-bg: rgba(217, 162, 59, 0.15);
+    --badge-pending-text: #D9A23B;
+    --badge-pending-border: rgba(217, 162, 59, 0.5);
+
+    --badge-reprimand-bg: rgba(240, 89, 74, 0.15);
+    --badge-reprimand-text: #F0594A;
+    --badge-reprimand-border: rgba(240, 89, 74, 0.5);
+
+    --case-id-bg: #2d3743;
+    --case-id-border: #4B5563;
+    --case-id-text: #D1D5DB;
+  }
+}
+
+@layer components {
+  .data-card {
+    @apply bg-surface border-outline-variant border rounded-lg text-on-surface;
+  }
+  
+  .zebra-row:nth-child(even) {
+    @apply bg-background;
+  }
+  
+  .zebra-row:nth-child(odd) {
+    @apply bg-surface;
+  }
+
+  .badge-pending {
+    color: var(--badge-pending-text);
+    background-color: var(--badge-pending-bg);
+    border-color: var(--badge-pending-border);
+  }
+  .badge-resolved {
+    color: var(--badge-resolved-text);
+    background-color: var(--badge-resolved-bg);
+    border-color: var(--badge-resolved-border);
+  }
+  .badge-reprimand {
+    color: var(--badge-reprimand-text);
+    background-color: var(--badge-reprimand-bg);
+    border-color: var(--badge-reprimand-border);
+  }
+  .case-id {
+    color: var(--case-id-text);
+    background-color: var(--case-id-bg);
+    border-color: var(--case-id-border);
+  }
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
+  @apply m-0 p-0 transition-colors duration-200;
+}

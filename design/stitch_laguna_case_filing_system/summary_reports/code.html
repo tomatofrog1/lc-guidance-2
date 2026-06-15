@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Summary &amp; Reports - Laguna College Guidance Office</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=IBM+Plex+Mono:wght@450&amp;family=Source+Serif+4:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-background": "#1a1c1c",
+                      "on-surface-variant": "#444652",
+                      "on-tertiary-container": "#ff765f",
+                      "secondary": "#585f6c",
+                      "primary-container": "#002f87",
+                      "on-secondary-container": "#5e6572",
+                      "on-secondary-fixed-variant": "#404754",
+                      "secondary-container": "#dce2f3",
+                      "on-primary-container": "#7f9cf8",
+                      "surface-container": "#eeeeee",
+                      "inverse-on-surface": "#f1f1f1",
+                      "on-primary-fixed-variant": "#1d4097",
+                      "on-primary-fixed": "#00174c",
+                      "surface": "#f9f9f9",
+                      "outline": "#747683",
+                      "surface-tint": "#3a59b1",
+                      "primary-fixed-dim": "#b4c5ff",
+                      "surface-bright": "#f9f9f9",
+                      "on-primary": "#ffffff",
+                      "secondary-fixed-dim": "#c0c7d6",
+                      "secondary-fixed": "#dce2f3",
+                      "on-tertiary": "#ffffff",
+                      "tertiary": "#4b0300",
+                      "surface-container-high": "#e8e8e8",
+                      "inverse-primary": "#b4c5ff",
+                      "on-tertiary-fixed": "#400200",
+                      "on-surface": "#1a1c1c",
+                      "surface-container-low": "#f3f3f3",
+                      "outline-variant": "#c4c6d4",
+                      "tertiary-container": "#730700",
+                      "background": "#f9f9f9",
+                      "surface-dim": "#dadada",
+                      "on-secondary": "#ffffff",
+                      "primary": "#001c59",
+                      "on-tertiary-fixed-variant": "#910b00",
+                      "error": "#ba1a1a",
+                      "primary-fixed": "#dbe1ff",
+                      "tertiary-fixed-dim": "#ffb4a7",
+                      "surface-variant": "#e2e2e2",
+                      "on-error": "#ffffff",
+                      "surface-container-highest": "#e2e2e2",
+                      "error-container": "#ffdad6",
+                      "on-error-container": "#93000a",
+                      "on-secondary-fixed": "#151c27",
+                      "inverse-surface": "#2f3131",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary-fixed": "#ffdad4"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "stack-md": "1rem",
+                      "stack-sm": "0.5rem",
+                      "margin-page": "2rem",
+                      "sidebar-width": "240px",
+                      "table-cell-padding": "12px 16px",
+                      "gutter": "1.5rem"
+              },
+              "fontFamily": {
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "label-caps": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "section-header": [
+                              "\"Source Serif 4\""
+                      ],
+                      "data-mono": [
+                              "IBM Plex Mono"
+                      ],
+                      "display-title": [
+                              "\"Source Serif 4\""
+                      ]
+              },
+              "fontSize": {
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "section-header": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "data-mono": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "fontWeight": "450"
+                              }
+                      ],
+                      "display-title": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .data-card {
+            background-color: #ffffff;
+            border: 1px solid #E2E2E2;
+            border-radius: 0.5rem;
+        }
+        .zebra-row:nth-child(even) {
+            background-color: #F3F3F3;
+        }
+        .zebra-row:nth-child(odd) {
+            background-color: #ffffff;
+        }
+      </style>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen">
+<!-- SideNavBar -->
+<nav class="w-sidebar-width h-screen fixed left-0 top-0 bg-surface dark:bg-surface-dim border-r border-outline-variant dark:border-on-surface-variant flex flex-col py-stack-md z-20">
+<div class="px-gutter mb-8 mt-4">
+<h1 class="font-display-title text-display-title text-primary dark:text-primary-fixed-dim">Laguna College</h1>
+<p class="font-label-caps text-label-caps text-secondary dark:text-secondary-fixed-dim mt-1 tracking-wider">GUIDANCE OFFICE</p>
+</div>
+<div class="flex-grow flex flex-col gap-1 px-4">
+<a class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-200 cursor-pointer active:scale-95" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">folder_open</span>
+<span class="font-body-md text-body-md font-medium">Case Catalog</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-200 cursor-pointer active:scale-95" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">add_box</span>
+<span class="font-body-md text-body-md font-medium">File New Case</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-r-DEFAULT -ml-4 pl-8 bg-surface-lowest text-primary dark:text-on-primary-container border-l-4 border-primary dark:border-primary-fixed-dim font-semibold bg-white shadow-sm transition-colors duration-200 cursor-pointer active:scale-95" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">assessment</span>
+<span class="font-body-md text-body-md">Summary &amp; Reports</span>
+</a>
+</div>
+<div class="mt-auto px-4 flex flex-col gap-1 border-t border-surface-variant pt-4 mx-4">
+<button class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 w-full text-left">
+<span class="material-symbols-outlined">dark_mode</span>
+<span class="font-body-md text-body-md font-medium">Dark Mode</span>
+</button>
+<button class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 w-full text-left">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-body-md text-body-md font-medium">Counselor Profile</span>
+</button>
+</div>
+</nav>
+<!-- TopAppBar -->
+<header class="full-width h-16 sticky top-0 bg-surface-bright dark:bg-surface-container border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page ml-sidebar-width w-[calc(100%-240px)] z-10 transition-all duration-150 ease-in-out">
+<div class="flex items-center gap-4">
+<h2 class="font-section-header text-section-header text-primary dark:text-primary-fixed-dim font-bold">Summary &amp; Reports</h2>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative flex items-center bg-white border border-outline-variant rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+<span class="material-symbols-outlined text-secondary pl-3" style="font-size: 20px;">calendar_today</span>
+<select class="pl-2 pr-8 py-1.5 border-none bg-transparent text-body-md font-body-md text-on-surface-variant focus:ring-0 appearance-none cursor-pointer">
+<option>Last 30 Days</option>
+<option>This Semester</option>
+<option>Academic Year</option>
+<option>All Time</option>
+</select>
+<span class="material-symbols-outlined text-secondary absolute right-2 pointer-events-none" style="font-size: 20px;">arrow_drop_down</span>
+</div>
+<button class="p-2 text-secondary hover:text-primary dark:hover:text-primary-fixed-dim transition-all rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+<button class="p-2 text-secondary hover:text-primary dark:hover:text-primary-fixed-dim transition-all rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="bg-primary text-white px-4 py-2 rounded-DEFAULT font-body-md text-body-md font-medium hover:bg-on-primary-fixed-variant transition-colors ml-2">
+                + New Case
+            </button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-sidebar-width min-h-[calc(100vh-64px)] p-margin-page max-w-[1440px] mx-auto flex flex-col gap-gutter pb-12">
+<!-- Top Row Stats (Bento Grid Style) -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="data-card p-6 flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<span class="font-label-caps text-label-caps text-secondary uppercase">Total Cases</span>
+<span class="material-symbols-outlined text-primary-container bg-secondary-container p-1.5 rounded-DEFAULT" style="font-size: 20px;">folder</span>
+</div>
+<div>
+<h3 class="font-display-title text-display-title text-on-background m-0 leading-none">1,248</h3>
+<p class="text-body-md font-body-md text-secondary mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-emerald-600" style="font-size: 16px;">arrow_upward</span>
+<span class="text-emerald-700 font-medium">+12%</span> vs last month
+                    </p>
+</div>
+</div>
+<div class="data-card p-6 flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<span class="font-label-caps text-label-caps text-secondary uppercase">Pending Action</span>
+<span class="material-symbols-outlined text-tertiary-container bg-error-container p-1.5 rounded-DEFAULT" style="font-size: 20px;">pending_actions</span>
+</div>
+<div>
+<h3 class="font-display-title text-display-title text-on-background m-0 leading-none">42</h3>
+<p class="text-body-md font-body-md text-secondary mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-tertiary-container" style="font-size: 16px;">error</span>
+<span class="text-tertiary-container font-medium">Requires attention</span>
+</p>
+</div>
+</div>
+<div class="data-card p-6 flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<span class="font-label-caps text-label-caps text-secondary uppercase">Resolved</span>
+<span class="material-symbols-outlined text-primary-container bg-secondary-container p-1.5 rounded-DEFAULT" style="font-size: 20px;">check_circle</span>
+</div>
+<div>
+<h3 class="font-display-title text-display-title text-on-background m-0 leading-none">1,156</h3>
+<p class="text-body-md font-body-md text-secondary mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-emerald-600" style="font-size: 16px;">check</span>
+<span class="text-secondary font-medium">92.6% resolution rate</span>
+</p>
+</div>
+</div>
+<div class="data-card p-6 flex flex-col justify-between bg-primary-fixed border-primary-fixed-dim">
+<div class="flex justify-between items-start mb-4">
+<span class="font-label-caps text-label-caps text-on-primary-fixed uppercase">Most Common Type</span>
+<span class="material-symbols-outlined text-primary bg-white p-1.5 rounded-DEFAULT" style="font-size: 20px;">warning</span>
+</div>
+<div>
+<h3 class="font-section-header text-section-header text-primary m-0 leading-tight">Academic Probation</h3>
+<p class="text-body-md font-body-md text-on-primary-fixed-variant mt-2 flex items-center gap-1">
+<span class="font-semibold">34%</span> of all cases this term
+                    </p>
+</div>
+</div>
+</div>
+<!-- Charts Area -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Line Chart: Cases over time -->
+<div class="data-card p-6 lg:col-span-2 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-section-header text-section-header text-primary">Filing Volume Trend</h3>
+<button class="text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+<div class="flex-grow relative w-full min-h-[300px] flex items-end pt-8">
+<!-- SVG Chart Visualization placeholder -->
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 800 300">
+<!-- Grid lines -->
+<line stroke="#E2E2E2" stroke-dasharray="4" stroke-width="1" x1="0" x2="800" y1="50" y2="50"></line>
+<line stroke="#E2E2E2" stroke-dasharray="4" stroke-width="1" x1="0" x2="800" y1="125" y2="125"></line>
+<line stroke="#E2E2E2" stroke-dasharray="4" stroke-width="1" x1="0" x2="800" y1="200" y2="200"></line>
+<line stroke="#E2E2E2" stroke-width="1" x1="0" x2="800" y1="275" y2="275"></line>
+<!-- Area gradient -->
+<defs>
+<lineargradient id="areaGrad" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#002f87" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#002f87" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<!-- Line -->
+<path d="M0,250 C100,200 150,220 250,150 C350,80 400,100 500,60 C600,20 650,80 750,40 L800,30 L800,275 L0,275 Z" fill="url(#areaGrad)"></path>
+<path d="M0,250 C100,200 150,220 250,150 C350,80 400,100 500,60 C600,20 650,80 750,40 L800,30" fill="none" stroke="#002f87" stroke-width="3"></path>
+<!-- Data points -->
+<circle cx="250" cy="150" fill="#ffffff" r="4" stroke="#002f87" stroke-width="2"></circle>
+<circle cx="500" cy="60" fill="#ffffff" r="4" stroke="#002f87" stroke-width="2"></circle>
+<circle cx="750" cy="40" fill="#ffffff" r="4" stroke="#002f87" stroke-width="2"></circle>
+</svg>
+<!-- X-axis labels -->
+<div class="absolute bottom-0 left-0 w-full flex justify-between text-body-md font-body-md text-secondary px-4 mt-2 -mb-6">
+<span>Sep</span>
+<span>Oct</span>
+<span>Nov</span>
+<span>Dec</span>
+<span>Jan</span>
+<span>Feb</span>
+<span>Mar</span>
+</div>
+</div>
+</div>
+<!-- Donut Chart: Case Distribution -->
+<div class="data-card p-6 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-section-header text-section-header text-primary">Case Distribution</h3>
+<button class="text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+<div class="flex-grow flex flex-col justify-center items-center">
+<!-- Simple CSS Donut representation -->
+<div class="relative w-48 h-48 rounded-full border-[24px] border-surface-container flex items-center justify-center mb-6" style="border-top-color: #001c59; border-right-color: #002f87; border-bottom-color: #3a59b1; border-left-color: #7f9cf8; transform: rotate(-45deg);">
+<div class="absolute inset-0 flex items-center justify-center" style="transform: rotate(45deg);">
+<div class="text-center">
+<span class="block font-display-title text-display-title text-on-background leading-none">100%</span>
+<span class="block font-label-caps text-label-caps text-secondary mt-1">TOTAL</span>
+</div>
+</div>
+</div>
+<!-- Legend -->
+<div class="w-full flex flex-col gap-3">
+<div class="flex items-center justify-between text-body-md font-body-md">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-sm bg-primary"></div>
+<span class="text-on-background">Academic Probation</span>
+</div>
+<span class="font-medium text-secondary">34%</span>
+</div>
+<div class="flex items-center justify-between text-body-md font-body-md">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-sm bg-primary-container"></div>
+<span class="text-on-background">Attendance</span>
+</div>
+<span class="font-medium text-secondary">28%</span>
+</div>
+<div class="flex items-center justify-between text-body-md font-body-md">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-sm bg-surface-tint"></div>
+<span class="text-on-background">Behavioral</span>
+</div>
+<span class="font-medium text-secondary">22%</span>
+</div>
+<div class="flex items-center justify-between text-body-md font-body-md">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-sm bg-on-primary-container"></div>
+<span class="text-on-background">Other</span>
+</div>
+<span class="font-medium text-secondary">16%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Recent Activity List -->
+<div class="data-card overflow-hidden flex flex-col">
+<div class="p-6 border-b border-surface-variant flex justify-between items-center bg-[#FAF8F4]">
+<h3 class="font-section-header text-section-header text-primary">Recent Activity Log</h3>
+<a class="text-body-md font-body-md font-medium text-primary-container hover:text-primary transition-colors flex items-center gap-1" href="#">
+                    View Full Catalog <span class="material-symbols-outlined" style="font-size: 18px;">arrow_forward</span>
+</a>
+</div>
+<div class="w-full">
+<!-- Row 1 -->
+<div class="zebra-row flex items-center justify-between px-6 py-4 border-b border-surface-variant last:border-b-0 hover:bg-surface-container-low transition-colors">
+<div class="flex items-center gap-4 w-1/3">
+<span class="inline-block px-2 py-1 bg-surface border border-outline-variant rounded-DEFAULT font-data-mono text-data-mono text-secondary">LC-2023-4091</span>
+<div>
+<p class="font-body-md text-body-md font-medium text-on-background m-0">Doe, Jane A.</p>
+<p class="font-label-caps text-label-caps text-secondary m-0 mt-0.5">Grade 11 • Sci-Tech</p>
+</div>
+</div>
+<div class="w-1/4">
+<p class="font-body-md text-body-md text-on-surface-variant">Academic Probation Hearing</p>
+</div>
+<div class="w-1/6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-DEFAULT bg-error-container text-on-error-container border border-[#ffb4a7] font-label-caps text-label-caps">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span> Pending
+                        </span>
+</div>
+<div class="w-1/6 text-right">
+<p class="font-body-md text-body-md text-secondary">Today, 10:42 AM</p>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="zebra-row flex items-center justify-between px-6 py-4 border-b border-surface-variant last:border-b-0 hover:bg-surface-container-low transition-colors">
+<div class="flex items-center gap-4 w-1/3">
+<span class="inline-block px-2 py-1 bg-surface border border-outline-variant rounded-DEFAULT font-data-mono text-data-mono text-secondary">LC-2023-4090</span>
+<div>
+<p class="font-body-md text-body-md font-medium text-on-background m-0">Smith, Robert J.</p>
+<p class="font-label-caps text-label-caps text-secondary m-0 mt-0.5">Grade 10 • Gen Ed</p>
+</div>
+</div>
+<div class="w-1/4">
+<p class="font-body-md text-body-md text-on-surface-variant">Attendance Warning Issued</p>
+</div>
+<div class="w-1/6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-DEFAULT bg-secondary-container text-on-secondary-container border border-secondary-fixed-dim font-label-caps text-label-caps">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span> Closed
+                        </span>
+</div>
+<div class="w-1/6 text-right">
+<p class="font-body-md text-body-md text-secondary">Yesterday, 3:15 PM</p>
+</div>
+</div>
+<!-- Row 3 -->
+<div class="zebra-row flex items-center justify-between px-6 py-4 border-b border-surface-variant last:border-b-0 hover:bg-surface-container-low transition-colors">
+<div class="flex items-center gap-4 w-1/3">
+<span class="inline-block px-2 py-1 bg-surface border border-outline-variant rounded-DEFAULT font-data-mono text-data-mono text-secondary">LC-2023-4088</span>
+<div>
+<p class="font-body-md text-body-md font-medium text-on-background m-0">Villanueva, Carlos</p>
+<p class="font-label-caps text-label-caps text-secondary m-0 mt-0.5">Grade 12 • Arts</p>
+</div>
+</div>
+<div class="w-1/4">
+<p class="font-body-md text-body-md text-on-surface-variant">Counseling Session Logged</p>
+</div>
+<div class="w-1/6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-DEFAULT bg-secondary-container text-on-secondary-container border border-secondary-fixed-dim font-label-caps text-label-caps">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span> Closed
+                        </span>
+</div>
+<div class="w-1/6 text-right">
+<p class="font-body-md text-body-md text-secondary">Oct 12, 11:00 AM</p>
+</div>
+</div>
+<!-- Row 4 -->
+<div class="zebra-row flex items-center justify-between px-6 py-4 border-b border-surface-variant last:border-b-0 hover:bg-surface-container-low transition-colors">
+<div class="flex items-center gap-4 w-1/3">
+<span class="inline-block px-2 py-1 bg-surface border border-outline-variant rounded-DEFAULT font-data-mono text-data-mono text-secondary">LC-2023-4085</span>
+<div>
+<p class="font-body-md text-body-md font-medium text-on-background m-0">Chen, Wei</p>
+<p class="font-label-caps text-label-caps text-secondary m-0 mt-0.5">Grade 9 • Gen Ed</p>
+</div>
+</div>
+<div class="w-1/4">
+<p class="font-body-md text-body-md text-on-surface-variant">Behavioral Reprimand - Level 1</p>
+</div>
+<div class="w-1/6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-DEFAULT bg-[#fff3cd] text-[#856404] border border-[#ffeeba] font-label-caps text-label-caps">
+<span class="w-1.5 h-1.5 rounded-full bg-[#ffc107]"></span> Monitoring
+                        </span>
+</div>
+<div class="w-1/6 text-right">
+<p class="font-body-md text-body-md text-secondary">Oct 10, 09:30 AM</p>
+</div>
+</div>
+<!-- Row 5 -->
+<div class="zebra-row flex items-center justify-between px-6 py-4 border-b border-surface-variant last:border-b-0 hover:bg-surface-container-low transition-colors">
+<div class="flex items-center gap-4 w-1/3">
+<span class="inline-block px-2 py-1 bg-surface border border-outline-variant rounded-DEFAULT font-data-mono text-data-mono text-secondary">LC-2023-4082</span>
+<div>
+<p class="font-body-md text-body-md font-medium text-on-background m-0">Ngo, Alyssa</p>
+<p class="font-label-caps text-label-caps text-secondary m-0 mt-0.5">Grade 11 • Sci-Tech</p>
+</div>
+</div>
+<div class="w-1/4">
+<p class="font-body-md text-body-md text-on-surface-variant">Parent Conference Scheduled</p>
+</div>
+<div class="w-1/6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-DEFAULT bg-error-container text-on-error-container border border-[#ffb4a7] font-label-caps text-label-caps">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span> Pending
+                        </span>
+</div>
+<div class="w-1/6 text-right">
+<p class="font-body-md text-body-md text-secondary">Oct 08, 02:15 PM</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

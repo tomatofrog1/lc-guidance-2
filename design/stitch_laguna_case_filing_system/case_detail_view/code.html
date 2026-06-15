@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Guidance Office - Case Detail View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600&amp;family=Source+Serif+4:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#1a1c1c",
+                        "on-surface-variant": "#444652",
+                        "on-tertiary-container": "#ff765f",
+                        "secondary": "#585f6c",
+                        "primary-container": "#002f87",
+                        "on-secondary-container": "#5e6572",
+                        "on-secondary-fixed-variant": "#404754",
+                        "secondary-container": "#dce2f3",
+                        "on-primary-container": "#7f9cf8",
+                        "surface-container": "#eeeeee",
+                        "inverse-on-surface": "#f1f1f1",
+                        "on-primary-fixed-variant": "#1d4097",
+                        "on-primary-fixed": "#00174c",
+                        "surface": "#f9f9f9",
+                        "outline": "#747683",
+                        "surface-tint": "#3a59b1",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "surface-bright": "#f9f9f9",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#c0c7d6",
+                        "secondary-fixed": "#dce2f3",
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#4b0300",
+                        "surface-container-high": "#e8e8e8",
+                        "inverse-primary": "#b4c5ff",
+                        "on-tertiary-fixed": "#400200",
+                        "on-surface": "#1a1c1c",
+                        "surface-container-low": "#f3f3f3",
+                        "outline-variant": "#c4c6d4",
+                        "tertiary-container": "#730700",
+                        "background": "#f9f9f9",
+                        "surface-dim": "#dadada",
+                        "on-secondary": "#ffffff",
+                        "primary": "#001c59",
+                        "on-tertiary-fixed-variant": "#910b00",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#dbe1ff",
+                        "tertiary-fixed-dim": "#ffb4a7",
+                        "surface-variant": "#e2e2e2",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#e2e2e2",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed": "#151c27",
+                        "inverse-surface": "#2f3131",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed": "#ffdad4"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-md": "1rem",
+                        "stack-sm": "0.5rem",
+                        "margin-page": "2rem",
+                        "sidebar-width": "240px",
+                        "table-cell-padding": "12px 16px",
+                        "gutter": "1.5rem"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "body-md": ["Inter"],
+                        "section-header": ["\"Source Serif 4\""],
+                        "data-mono": ["IBM Plex Mono"],
+                        "display-title": ["\"Source Serif 4\""]
+                    },
+                    "fontSize": {
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "section-header": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "data-mono": ["13px", { "lineHeight": "18px", "fontWeight": "450" }],
+                        "display-title": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .warm-paper { background-color: #FAF8F4; }
+        .folder-tab {
+            clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 100%, 0 100%);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="bg-surface dark:bg-surface-dim text-primary dark:text-primary-fixed-dim font-body-md text-body-md w-sidebar-width h-screen fixed left-0 top-0 border-r border-outline-variant dark:border-on-surface-variant flex flex-col h-full py-stack-md z-10">
+<div class="px-gutter mb-8">
+<h1 class="font-display-title text-display-title text-primary dark:text-primary-fixed-dim">Laguna College</h1>
+<p class="font-label-caps text-label-caps text-secondary mt-1">GUIDANCE OFFICE</p>
+</div>
+<ul class="flex-1 space-y-1">
+<li class="bg-secondary-container dark:bg-primary-container text-primary dark:text-on-primary-container border-l-4 border-primary dark:border-primary-fixed-dim font-semibold cursor-pointer active:scale-95 flex items-center px-gutter py-3">
+<span class="material-symbols-outlined mr-3">folder_open</span>
+                Case Catalog
+            </li>
+<li class="text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-200 cursor-pointer active:scale-95 flex items-center px-gutter py-3">
+<span class="material-symbols-outlined mr-3">add_box</span>
+                File New Case
+            </li>
+<li class="text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-200 cursor-pointer active:scale-95 flex items-center px-gutter py-3">
+<span class="material-symbols-outlined mr-3">assessment</span>
+                Summary &amp; Reports
+            </li>
+</ul>
+<ul class="mt-auto space-y-1">
+<li class="text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-200 cursor-pointer active:scale-95 flex items-center px-gutter py-3">
+<span class="material-symbols-outlined mr-3">dark_mode</span>
+                Dark Mode
+            </li>
+<li class="text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-200 cursor-pointer active:scale-95 flex items-center px-gutter py-3">
+<span class="material-symbols-outlined mr-3">account_circle</span>
+                Counselor Profile
+            </li>
+</ul>
+</nav>
+<!-- Main Content Area -->
+<main class="ml-sidebar-width flex-1 flex flex-col min-h-screen">
+<!-- TopAppBar -->
+<header class="bg-surface-bright dark:bg-surface-container text-primary dark:text-primary-fixed-dim font-section-header text-section-header h-16 sticky top-0 border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page w-full z-10 transition-all duration-150 ease-in-out">
+<div class="flex items-center space-x-4">
+<span class="material-symbols-outlined text-secondary cursor-pointer hover:text-primary transition-colors">arrow_back</span>
+<span class="font-display-title text-display-title text-primary text-xl">Case Details</span>
+</div>
+<div class="flex items-center space-x-4">
+<div class="flex space-x-2">
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-all duration-150 ease-in-out">filter_list</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-all duration-150 ease-in-out">settings</span>
+</div>
+<button class="bg-primary-container text-on-primary font-body-md py-2 px-4 rounded hover:bg-primary transition-colors">+ New Case</button>
+</div>
+</header>
+<!-- Page Content -->
+<div class="flex-1 p-margin-page max-w-[1440px] mx-auto w-full">
+<!-- Actions Row -->
+<div class="flex justify-between items-end mb-4">
+<div class="flex items-center space-x-3">
+<span class="font-data-mono text-data-mono bg-surface-container-low border border-surface-variant px-2 py-1 rounded text-secondary">ID: GC-2023-0891</span>
+</div>
+<div class="flex space-x-3">
+<button class="border border-surface-variant text-on-surface font-body-md py-2 px-4 rounded flex items-center space-x-2 hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-sm">edit</span>
+<span>Edit</span>
+</button>
+<button class="bg-primary-container text-on-primary font-body-md py-2 px-4 rounded flex items-center space-x-2 hover:bg-primary transition-colors">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+<span>Mark as Resolved</span>
+</button>
+</div>
+</div>
+<!-- Folder Paper Container -->
+<div class="warm-paper border border-surface-variant shadow-[0px_1px_2px_rgba(0,0,0,0.1)] rounded-lg relative overflow-hidden">
+<!-- Institutional Branding Header inside folder -->
+<div class="px-8 py-6 border-b border-surface-variant flex justify-between items-start bg-white bg-opacity-50">
+<div>
+<h2 class="font-display-title text-display-title text-primary text-2xl">Laguna College</h2>
+<p class="font-label-caps text-label-caps text-secondary mt-1">OFFICIAL GUIDANCE RECORD</p>
+</div>
+<!-- Prominent Status Stamp -->
+<div class="bg-error-container border border-error text-on-error-container font-label-caps px-3 py-1 rounded-[4px] transform rotate-[-2deg] flex items-center space-x-1">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span>HIGH PRIORITY</span>
+</div>
+</div>
+<!-- Two-Column Read View -->
+<div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
+<!-- Left Column: Student Info -->
+<div class="space-y-8">
+<section>
+<h3 class="font-section-header text-section-header text-primary mb-4 border-b border-surface-variant pb-2">Student Profile</h3>
+<div class="space-y-4">
+<div>
+<label class="font-label-caps text-label-caps text-secondary block mb-1">Full Name</label>
+<p class="font-body-lg text-body-lg text-on-surface">Eleanor Vance</p>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="font-label-caps text-label-caps text-secondary block mb-1">Student ID</label>
+<p class="font-data-mono text-data-mono text-on-surface bg-white inline-block px-2 py-1 border border-surface-variant rounded">LC-10492</p>
+</div>
+<div>
+<label class="font-label-caps text-label-caps text-secondary block mb-1">Grade Level</label>
+<p class="font-body-lg text-body-lg text-on-surface">Junior (11th)</p>
+</div>
+</div>
+<div>
+<label class="font-label-caps text-label-caps text-secondary block mb-1">Advisory Group</label>
+<p class="font-body-md text-body-md text-on-surface">Homeroom 3B - Mr. Dudley</p>
+</div>
+</div>
+</section>
+<section>
+<h3 class="font-section-header text-section-header text-primary mb-4 border-b border-surface-variant pb-2">Contact Details</h3>
+<div class="space-y-4">
+<div>
+<label class="font-label-caps text-label-caps text-secondary block mb-1">Guardian Contact</label>
+<p class="font-body-md text-body-md text-on-surface">Sarah Vance (Mother) - 555-0198</p>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column: Case Notes & Details -->
+<div class="space-y-8">
+<section>
+<h3 class="font-section-header text-section-header text-primary mb-4 border-b border-surface-variant pb-2">Case Context</h3>
+<div class="space-y-4">
+<div>
+<label class="font-label-caps text-label-caps text-secondary block mb-1">Filing Date</label>
+<p class="font-body-md text-body-md text-on-surface">October 24, 2023</p>
+</div>
+<div>
+<label class="font-label-caps text-label-caps text-secondary block mb-1">Primary Category</label>
+<div class="inline-flex items-center space-x-2 bg-secondary-container text-on-secondary-container px-2 py-1 rounded-[4px] border border-secondary-fixed">
+<span class="material-symbols-outlined text-sm">psychology</span>
+<span class="font-body-md text-sm">Academic Stress</span>
+</div>
+</div>
+</div>
+</section>
+<section>
+<h3 class="font-section-header text-section-header text-primary mb-4 border-b border-surface-variant pb-2">Counselor Notes</h3>
+<div class="bg-white p-4 border border-surface-variant rounded-lg space-y-4">
+<div>
+<p class="font-data-mono text-data-mono text-secondary mb-2">Logged: Oct 24, 10:15 AM by Counselor Jenkins</p>
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+                                        Student reported feeling overwhelmed by recent AP Calculus assignments. Exhibited signs of mild anxiety during session. Recommended a temporary adjustment to homework load and scheduled a follow-up meeting with the math department head to discuss a support plan.
+                                    </p>
+</div>
+<div class="border-t border-surface-variant pt-4">
+<p class="font-data-mono text-data-mono text-secondary mb-2">Logged: Oct 26, 02:30 PM by Counselor Jenkins</p>
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+                                        Spoke with Mrs. Vance. She noted Eleanor has been staying up past midnight studying. Agreed to enforce stricter sleep hygiene protocols at home.
+                                    </p>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Bottom Decorative Line -->
+<div class="h-2 bg-primary w-full opacity-10"></div>
+</div>
+</div>
+</main>
+</body></html>
