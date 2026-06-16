@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 interface FileNewCaseModalProps {
   isOpen: boolean;
@@ -8,6 +9,8 @@ interface FileNewCaseModalProps {
 export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditingReview, setIsEditingReview] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   
   // Form State
   const [formData, setFormData] = useState({
@@ -28,17 +31,19 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
 
   const handleNext = () => {
     setIsEditingReview(false);
+    setSubmitError("");
     setCurrentStep(Math.min(currentStep + 1, 3));
   };
   const handleBack = () => {
     setIsEditingReview(false);
+    setSubmitError("");
     setCurrentStep(Math.max(currentStep - 1, 1));
   };
-  const handleFileCase = () => {
-    // Submit logic here
-    onClose();
-    setCurrentStep(1); // Reset
+
+  const resetForm = () => {
+    setCurrentStep(1);
     setIsEditingReview(false);
+    setSubmitError("");
     setFormData({
       firstName: "",
       lastName: "",
@@ -50,6 +55,33 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
       section: "",
       adviser: ""
     });
+  };
+
+  const handleFileCase = async () => {
+    setSubmitError("");
+    setIsSubmitting(true);
+
+    try {
+      await invoke("add_case", {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        level: formData.level.trim(),
+        section: formData.section.trim(),
+        date: formData.date,
+        adviser: formData.adviser.trim(),
+        case: formData.case.trim(),
+        sanction: formData.sanction.trim(),
+        progress: formData.progress,
+      });
+
+      window.dispatchEvent(new Event("cases:changed"));
+      onClose();
+      resetForm();
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -349,7 +381,9 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
             <button className="flex items-center gap-2 px-5 py-2.5 border border-outline-variant rounded-xl font-bold text-sm text-on-surface hover:bg-surface-container transition-colors">
               <span className="material-symbols-outlined text-[20px]">save</span> Save Draft
             </button>
-            <span className="text-xs font-bold text-secondary/70 uppercase tracking-widest hidden md:inline-block">No Draft Not saved yet</span>
+            <span className={`text-xs font-bold uppercase tracking-widest hidden md:inline-block ${submitError ? "text-error" : "text-secondary/70"}`}>
+              {submitError || "No Draft Not saved yet"}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {currentStep > 1 && (
@@ -376,9 +410,10 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
             ) : (
               <button 
                 onClick={handleFileCase}
-                className="px-6 py-2.5 bg-[#0F172A] text-white hover:bg-black font-bold text-sm rounded-xl transition-colors flex items-center gap-2"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 bg-[#0F172A] text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed font-bold text-sm rounded-xl transition-colors flex items-center gap-2"
               >
-                File Case <span className="material-symbols-outlined text-[16px]">check</span>
+                {isSubmitting ? "Saving..." : "File Case"} <span className="material-symbols-outlined text-[16px]">check</span>
               </button>
             )}
           </div>

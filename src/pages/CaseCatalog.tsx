@@ -1,10 +1,117 @@
-import Layout from "../components/Layout";
+import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+interface CaseRecord {
+  id: number;
+  first_name: string;
+  last_name: string;
+  level: string;
+  section: string;
+  date: string;
+  adviser: string;
+  case: string;
+  sanction: string;
+  progress: string;
+}
+
+const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
+
+const formatDate = (date: string) => {
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return date;
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const isResolved = (progress: string) => progress.toLowerCase() === "resolved";
+const isPending = (progress: string) => progress.toLowerCase() === "pending";
+const isReprimand = (caseRecord: CaseRecord) =>
+  caseRecord.sanction.toLowerCase().includes("reprimand") ||
+  caseRecord.progress.toLowerCase().includes("reprimand");
+
+const wasResolvedWithinLast30Days = (caseRecord: CaseRecord) => {
+  if (!isResolved(caseRecord.progress)) {
+    return false;
+  }
+
+  const resolvedDate = new Date(caseRecord.date);
+
+  if (Number.isNaN(resolvedDate.getTime())) {
+    return false;
+  }
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  return resolvedDate >= thirtyDaysAgo;
+};
+
+const getBadgeClass = (progress: string) => {
+  const normalizedProgress = progress.toLowerCase();
+
+  if (normalizedProgress === "resolved") {
+    return "badge-resolved";
+  }
+
+  if (normalizedProgress.includes("reprimand")) {
+    return "badge-reprimand";
+  }
+
+  return "badge-pending";
+};
 
 export default function CaseCatalog() {
   const navigate = useNavigate();
+  const [cases, setCases] = useState<CaseRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadCases = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const loadedCases = await invoke<CaseRecord[]>("get_cases");
+      setCases(loadedCases);
+      setError(null);
+    } catch (err) {
+      setCases([]);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCases();
+  }, [loadCases]);
+
+  useEffect(() => {
+    window.addEventListener("cases:changed", loadCases);
+    return () => {
+      window.removeEventListener("cases:changed", loadCases);
+    };
+  }, [loadCases]);
+
+  const stats = useMemo(() => {
+    const activeCases = cases.filter((caseRecord) => !isResolved(caseRecord.progress));
+
+    return {
+      totalActiveCases: activeCases.length,
+      pendingReview: cases.filter((caseRecord) => isPending(caseRecord.progress)).length,
+      resolvedLast30Days: cases.filter(wasResolvedWithinLast30Days).length,
+      activeReprimands: activeCases.filter(isReprimand).length,
+    };
+  }, [cases]);
+
   return (
-    <Layout title="Guidance Office">
+    <>
       <div className="flex justify-between items-end mb-6">
         <h2 className="font-section-header text-section-header text-on-surface">Case Catalog</h2>
         <div className="flex gap-3">
@@ -45,19 +152,19 @@ export default function CaseCatalog() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-surface border border-surface-variant rounded-lg p-5 border-t-4 border-t-secondary-container shadow-sm">
           <h3 className="font-body-md text-on-surface-variant text-sm mb-1">Total Active Cases</h3>
-          <div className="font-data-mono text-display-title text-on-surface mt-2">124</div>
+          <div className="font-data-mono text-display-title text-on-surface mt-2">{isLoading ? "..." : stats.totalActiveCases}</div>
         </div>
         <div className="bg-surface border border-surface-variant rounded-lg p-5 border-t-4 border-t-[#f59e0b] shadow-sm">
           <h3 className="font-body-md text-on-surface-variant text-sm mb-1">Pending Review</h3>
-          <div className="font-data-mono text-display-title text-on-surface mt-2">38</div>
+          <div className="font-data-mono text-display-title text-on-surface mt-2">{isLoading ? "..." : stats.pendingReview}</div>
         </div>
         <div className="bg-surface border border-surface-variant rounded-lg p-5 border-t-4 border-t-[#22c55e] shadow-sm">
           <h3 className="font-body-md text-on-surface-variant text-sm mb-1">Resolved (30d)</h3>
-          <div className="font-data-mono text-display-title text-on-surface mt-2">82</div>
+          <div className="font-data-mono text-display-title text-on-surface mt-2">{isLoading ? "..." : stats.resolvedLast30Days}</div>
         </div>
         <div className="bg-surface border border-surface-variant rounded-lg p-5 border-t-4 border-t-[#ef4444] shadow-sm">
           <h3 className="font-body-md text-on-surface-variant text-sm mb-1">Active Reprimands</h3>
-          <div className="font-data-mono text-display-title text-on-surface mt-2">14</div>
+          <div className="font-data-mono text-display-title text-on-surface mt-2">{isLoading ? "..." : stats.activeReprimands}</div>
         </div>
       </div>
 
@@ -76,98 +183,67 @@ export default function CaseCatalog() {
               </tr>
             </thead>
             <tbody className="font-body-md text-sm text-on-surface">
-              <tr className="border-b border-surface-variant/50 hover:bg-surface-container transition-colors cursor-pointer group" onClick={() => navigate('/case/0042')}>
-                <td className="p-table-cell-padding">
-                  <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">#0042</span>
-                </td>
-                <td className="p-table-cell-padding text-on-surface-variant">Oct 24, 2023</td>
-                <td className="p-table-cell-padding font-medium">Eleanor Vance</td>
-                <td className="p-table-cell-padding">
-                  <span className="bg-surface-container-high px-2 py-1 rounded text-xs text-on-surface-variant border border-outline-variant">Behavioral</span>
-                </td>
-                <td className="p-table-cell-padding">
-                  <span className="badge-pending border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block">Pending</span>
-                </td>
-                <td className="p-table-cell-padding text-on-surface-variant">Mr. Dudley</td>
-                <td className="p-table-cell-padding text-right">
-                  <button className="text-secondary hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
-                    <span className="material-symbols-outlined text-[20px]">more_vert</span>
-                  </button>
-                </td>
-              </tr>
-              <tr className="border-b border-surface-variant/50 hover:bg-surface-container transition-colors cursor-pointer group" onClick={() => navigate('/case/0041')}>
-                <td className="p-table-cell-padding">
-                  <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">#0041</span>
-                </td>
-                <td className="p-table-cell-padding text-on-surface-variant">Oct 22, 2023</td>
-                <td className="p-table-cell-padding font-medium">Luke Crain</td>
-                <td className="p-table-cell-padding">
-                  <span className="bg-surface-container-high px-2 py-1 rounded text-xs text-on-surface-variant border border-outline-variant">Academic</span>
-                </td>
-                <td className="p-table-cell-padding">
-                  <span className="badge-resolved border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block">Resolved</span>
-                </td>
-                <td className="p-table-cell-padding text-on-surface-variant">Ms. Montague</td>
-                <td className="p-table-cell-padding text-right">
-                  <button className="text-secondary hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
-                    <span className="material-symbols-outlined text-[20px]">more_vert</span>
-                  </button>
-                </td>
-              </tr>
-              <tr className="border-b border-surface-variant/50 hover:bg-surface-container transition-colors cursor-pointer group" onClick={() => navigate('/case/0040')}>
-                <td className="p-table-cell-padding">
-                  <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">#0040</span>
-                </td>
-                <td className="p-table-cell-padding text-on-surface-variant">Oct 19, 2023</td>
-                <td className="p-table-cell-padding font-medium">Theodora Crain</td>
-                <td className="p-table-cell-padding">
-                  <span className="bg-surface-container-high px-2 py-1 rounded text-xs text-on-surface-variant border border-outline-variant">Attendance</span>
-                </td>
-                <td className="p-table-cell-padding">
-                  <span className="badge-reprimand border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block">Reprimand</span>
-                </td>
-                <td className="p-table-cell-padding text-on-surface-variant">Principal Sanderson</td>
-                <td className="p-table-cell-padding text-right">
-                  <button className="text-secondary hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
-                    <span className="material-symbols-outlined text-[20px]">more_vert</span>
-                  </button>
-                </td>
-              </tr>
-              <tr className="border-b border-surface-variant/50 hover:bg-surface-container transition-colors cursor-pointer group" onClick={() => navigate('/case/0039')}>
-                <td className="p-table-cell-padding">
-                  <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">#0039</span>
-                </td>
-                <td className="p-table-cell-padding text-on-surface-variant">Oct 15, 2023</td>
-                <td className="p-table-cell-padding font-medium">Steven Crain</td>
-                <td className="p-table-cell-padding">
-                  <span className="bg-surface-container-high px-2 py-1 rounded text-xs text-on-surface-variant border border-outline-variant">Academic</span>
-                </td>
-                <td className="p-table-cell-padding">
-                  <span className="badge-pending border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block">Pending</span>
-                </td>
-                <td className="p-table-cell-padding text-on-surface-variant">System Auto</td>
-                <td className="p-table-cell-padding text-right">
-                  <button className="text-secondary hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
-                    <span className="material-symbols-outlined text-[20px]">more_vert</span>
-                  </button>
-                </td>
-              </tr>
+              {isLoading && (
+                <tr>
+                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={7}>
+                    Loading cases...
+                  </td>
+                </tr>
+              )}
+              {!isLoading && error && (
+                <tr>
+                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={7}>
+                    Backend unavailable. Open with npm run tauri -- dev to load cases.
+                  </td>
+                </tr>
+              )}
+              {!isLoading && !error && cases.length === 0 && (
+                <tr>
+                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={7}>
+                    No cases filed yet.
+                  </td>
+                </tr>
+              )}
+              {!isLoading && !error && cases.map((caseRecord) => (
+                <tr
+                  key={caseRecord.id}
+                  className="border-b border-surface-variant/50 hover:bg-surface-container transition-colors cursor-pointer group"
+                  onClick={() => navigate(`/case/${caseRecord.id}`)}
+                >
+                  <td className="p-table-cell-padding">
+                    <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
+                  </td>
+                  <td className="p-table-cell-padding text-on-surface-variant">{formatDate(caseRecord.date)}</td>
+                  <td className="p-table-cell-padding font-medium">{caseRecord.first_name} {caseRecord.last_name}</td>
+                  <td className="p-table-cell-padding">
+                    <span className="bg-surface-container-high px-2 py-1 rounded text-xs text-on-surface-variant border border-outline-variant">{caseRecord.case}</span>
+                  </td>
+                  <td className="p-table-cell-padding">
+                    <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block`}>{caseRecord.progress}</span>
+                  </td>
+                  <td className="p-table-cell-padding text-on-surface-variant">{caseRecord.adviser}</td>
+                  <td className="p-table-cell-padding text-right">
+                    <button className="text-secondary hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
+                      <span className="material-symbols-outlined text-[20px]">more_vert</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
         <div className="bg-surface border-t border-surface-variant px-4 py-3 flex items-center justify-between">
-          <span className="text-sm text-on-surface-variant">Showing 1 to 4 of 124 entries</span>
+          <span className="text-sm text-on-surface-variant">
+            {isLoading ? "Loading entries" : `Showing ${cases.length === 0 ? 0 : 1} to ${cases.length} of ${cases.length} entries`}
+          </span>
           <div className="flex gap-1">
             <button className="px-3 py-1 border border-outline-variant rounded bg-surface hover:bg-surface-container-low text-on-surface-variant disabled:opacity-50 text-sm" disabled>Previous</button>
             <button className="px-3 py-1 border border-primary-container rounded bg-primary-container text-white text-sm">1</button>
-            <button className="px-3 py-1 border border-outline-variant rounded bg-surface hover:bg-surface-container-low text-on-surface-variant text-sm">2</button>
-            <button className="px-3 py-1 border border-outline-variant rounded bg-surface hover:bg-surface-container-low text-on-surface-variant text-sm">3</button>
-            <span className="px-2 py-1 text-on-surface-variant">...</span>
             <button className="px-3 py-1 border border-outline-variant rounded bg-surface hover:bg-surface-container-low text-on-surface-variant text-sm">Next</button>
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

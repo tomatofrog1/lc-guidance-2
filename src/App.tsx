@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
+import Layout from "./components/Layout";
 import SummaryReports from "./pages/SummaryReports";
 import CaseCatalog from "./pages/CaseCatalog";
 import CaseDetails from "./pages/CaseDetails";
@@ -16,9 +17,11 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<SummaryReports />} />
-        <Route path="/catalog" element={<CaseCatalog />} />
-        <Route path="/case/:id" element={<CaseDetails />} />
+        <Route element={<Layout />}>
+          <Route path="/" element={<SummaryReports />} />
+          <Route path="/catalog" element={<CaseCatalog />} />
+          <Route path="/case/:id" element={<CaseDetails />} />
+        </Route>
       </Routes>
     </Router>
   );

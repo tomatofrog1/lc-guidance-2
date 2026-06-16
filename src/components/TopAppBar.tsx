@@ -7,7 +7,7 @@ interface TopAppBarProps {
 
 export default function TopAppBar({ title, onNewCaseClick }: TopAppBarProps) {
   return (
-    <header className="full-width h-16 sticky top-0 bg-surface-bright dark:bg-surface-container border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page ml-sidebar-width w-[calc(100%-240px)] z-10 transition-all duration-150 ease-in-out">
+    <header className="h-16 sticky top-0 bg-surface-bright dark:bg-surface-container border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page ml-sidebar-width min-w-0 z-10 transition-colors duration-150 ease-in-out">
       <div className="flex items-center gap-4">
         {title !== "Summary & Reports" && title !== "Guidance Office" && (
           <Link to={-1 as any} className="text-secondary hover:text-primary transition-colors">
