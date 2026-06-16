@@ -88,6 +88,26 @@
   .data-card {
     @apply bg-surface border-outline-variant border rounded-lg text-on-surface;
   }
+
+  .page-transition {
+    animation: page-maximize 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: center top;
+    will-change: opacity, transform, filter;
+  }
+
+  .nav-active-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 1rem;
+    height: 3rem;
+    border-left: 4px solid var(--color-primary);
+    border-radius: 0 8px 8px 0;
+    background-color: var(--color-surface);
+    box-shadow: 0 1px 3px rgba(31, 41, 55, 0.12);
+    transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
   
   .zebra-row:nth-child(even) {
     @apply bg-background;
@@ -125,102 +145,21 @@ body {
   @apply m-0 p-0 transition-colors duration-200;
 }
 
-html {
-  overflow-x: hidden;
-  overflow-y: scroll;
-  scrollbar-gutter: stable;
-}
-
-body,
-#root {
-  min-width: 0;
-  overflow-x: hidden;
-}
-
-.page-transition {
-  animation: page-content-maximize 320ms cubic-bezier(0.22, 0.78, 0.2, 1);
-  backface-visibility: hidden;
-  contain: paint;
-  transform-origin: 50% 24px;
-  will-change: opacity, transform;
-}
-
-.nav-active-indicator {
-  position: absolute;
-  left: 1rem;
-  right: 1rem;
-  top: 0;
-  height: 3rem;
-  border-radius: 0 0.25rem 0.25rem 0;
-  background-color: var(--color-surface-container);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-  transition:
-    transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    background-color 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform;
-}
-
-.nav-active-fill {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--color-primary) 20%, transparent),
-    color-mix(in srgb, var(--color-primary) 10%, transparent)
-  );
-  transform-origin: left center;
-  animation: nav-active-fill 340ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.nav-active-fill::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  width: 4px;
-  border-radius: 0 0.25rem 0.25rem 0;
-  background-color: var(--color-primary);
-}
-
-html.dark .nav-active-indicator {
-  background-color: var(--color-surface-container-high);
-}
-
-.nav-icon {
-  transition:
-    color 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    font-variation-settings 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.nav-link {
-  transition:
-    background-color 360ms cubic-bezier(0.22, 0.78, 0.2, 1),
-    color 320ms cubic-bezier(0.22, 0.78, 0.2, 1),
-    box-shadow 360ms cubic-bezier(0.22, 0.78, 0.2, 1);
-}
-
-@keyframes page-content-maximize {
+@keyframes page-maximize {
   0% {
     opacity: 0;
-    transform: translate3d(0, 10px, 0) scale(0.97);
+    transform: scale(0.965) translateY(14px);
+    filter: blur(6px);
   }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
 
-@keyframes nav-active-fill {
-  0% {
-    opacity: 0;
-    transform: scaleX(0.08);
+  60% {
+    opacity: 1;
   }
+
   100% {
     opacity: 1;
-    transform: scaleX(1);
+    transform: scale(1) translateY(0);
+    filter: blur(0);
   }
 }
 
@@ -230,15 +169,6 @@ html.dark .nav-active-indicator {
   }
 
   .nav-active-indicator {
-    transition: none;
-  }
-
-  .nav-active-fill {
-    animation: none;
-  }
-
-  .nav-icon,
-  .nav-link {
     transition: none;
   }
 }
