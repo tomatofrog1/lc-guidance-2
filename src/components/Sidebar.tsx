@@ -4,6 +4,23 @@ import { useDarkMode } from "../hooks/useDarkMode";
 export default function Sidebar() {
   const location = useLocation();
   const { isDark, toggleDarkMode } = useDarkMode();
+  const navItems = [
+    { path: "/catalog", label: "Case Catalog", icon: "folder_open", activePaths: ["/catalog", "/case"] },
+    { path: "/", label: "Summary & Reports", icon: "assessment", activePaths: ["/"] },
+  ];
+
+  const activeIndex = Math.max(
+    navItems.findIndex((item) =>
+      item.activePaths.some((path) =>
+        path === "/" ? location.pathname === "/" : location.pathname.startsWith(path)
+      )
+    ),
+    0
+  );
+
+  const getLinkClasses = (index: number) => {
+    const isActive = index === activeIndex;
+    const baseClasses = "nav-link relative z-10 flex h-12 items-center gap-3 px-4 rounded-DEFAULT cursor-pointer active:scale-[0.99]";
 
   const navItems = [
     { path: "/catalog", label: "Case Catalog", icon: "folder_open", activePaths: ["/catalog", "/case"] },
@@ -64,12 +81,12 @@ export default function Sidebar() {
       <div className="mt-auto px-4 flex flex-col gap-1 border-t border-surface-variant pt-4 mx-4">
         <button
           onClick={toggleDarkMode}
-          className="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 w-full text-left"
+          className="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-500 cursor-pointer active:scale-95 w-full text-left"
         >
           <span className="material-symbols-outlined">{isDark ? "light_mode" : "dark_mode"}</span>
           <span className="font-body-md text-body-md font-medium">{isDark ? "Light Mode" : "Dark Mode"}</span>
         </button>
-        <button className="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 w-full text-left">
+        <button className="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-500 cursor-pointer active:scale-95 w-full text-left">
           <span className="material-symbols-outlined">account_circle</span>
           <span className="font-body-md text-body-md font-medium">Counselor Profile</span>
         </button>
