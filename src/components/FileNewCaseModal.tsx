@@ -1,68 +1,258 @@
-import { useState } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { invoke } from "@tauri-apps/api/core";
+
+interface ProofItem {
+  name: string;
+  data: string;
+}
 
 interface FileNewCaseModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+// ── Case category data ──────────────────────────────────────────────────────
+const CASE_CATEGORIES = [
+  {
+    id: "academic",
+    label: "Academic",
+    color: "#185FA5",
+    bg: "#E6F1FB",
+    border: "#B5D4F4",
+    cases: [
+      "Poor academic performance",
+      "Learning difficulties",
+      "Study skills & habits",
+      "Absenteeism / tardiness",
+      "Course selection",
+      "Dropout prevention",
+    ],
+  },
+  {
+    id: "personal",
+    label: "Personal / Social",
+    color: "#0F6E56",
+    bg: "#E1F5EE",
+    border: "#9FE1CB",
+    cases: [
+      "Peer relationship issues",
+      "Family problems",
+      "Self-esteem & identity",
+      "Adjustment difficulties",
+      "Grief & loss",
+      "Gender & sexuality",
+      "Substance use",
+      "Social media issues",
+    ],
+  },
+  {
+    id: "behavioural",
+    label: "Behavioural",
+    color: "#854F0B",
+    bg: "#FAEEDA",
+    border: "#FAC775",
+    cases: [
+      "Defiance / non-compliance",
+      "Classroom disruption",
+      "Bullying",
+      "Truancy / skipping",
+      "Vandalism / property damage",
+      "Theft & dishonesty",
+      "Inappropriate language",
+      "Gang-related behaviour",
+      "Substance possession",
+    ],
+  },
+  {
+    id: "crisis",
+    label: "Crisis, Violence & Mental Health",
+    color: "#A32D2D",
+    bg: "#FCEBEB",
+    border: "#F7C1C1",
+    cases: [
+      "Physical fighting",
+      "Assault on staff",
+      "Weapons possession",
+      "Threats & intimidation",
+      "Self-harm & suicide risk",
+      "Sexual harassment",
+      "Anxiety & depression",
+      "Trauma & abuse",
+      "Crisis intervention",
+    ],
+  },
+];
+
+const PROGRESS_OPTIONS = [
+  {
+    value: "Pending",
+    label: "Pending",
+    desc: "Under review",
+    dot: "#854F0B",
+    bg: "#FAEEDA",
+    border: "#FAC775",
+    text: "#633806",
+  },
+  {
+    value: "Reprimand",
+    label: "Reprimand",
+    desc: "Action issued",
+    dot: "#A32D2D",
+    bg: "#FCEBEB",
+    border: "#F7C1C1",
+    text: "#791F1F",
+  },
+  {
+    value: "Resolved",
+    label: "Resolved",
+    desc: "Case closed",
+    dot: "#0F6E56",
+    bg: "#E1F5EE",
+    border: "#9FE1CB",
+    text: "#085041",
+  },
+];
+
+// ── Helper ──────────────────────────────────────────────────────────────────
+function getCategoryForCase(caseStr: string) {
+  for (const cat of CASE_CATEGORIES) {
+    if (cat.cases.includes(caseStr)) return cat;
+  }
+  return null;
+}
+
+// ── Component ───────────────────────────────────────────────────────────────
 export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditingReview, setIsEditingReview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  
-  // Form State
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>("behavioural");
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     date: "",
     case: "",
+    caseCategory: "",
     sanction: "",
     progress: "Pending",
     level: "",
     section: "",
-    adviser: ""
+    adviser: "",
+    uploadedProofs: [] as ProofItem[],
   });
 
-  if (!isOpen) return null;
+  const isFormEmpty = () =>
+    !formData.firstName.trim() &&
+    !formData.lastName.trim() &&
+    !formData.date &&
+    !formData.case.trim() &&
+    !formData.sanction.trim() &&
+    !formData.level.trim() &&
+    !formData.section.trim() &&
+    !formData.adviser.trim() &&
+    formData.uploadedProofs.length === 0;
 
-  const steps = ["Case Details", "Student Information", "Review"];
+  const handleCloseAttempt = () => {
+    if (!isFormEmpty()) setShowConfirmClose(true);
+    else onClose();
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentStep(1);
+      setShowConfirmClose(false);
+      setIsEditingReview(false);
+      setSubmitError("");
+      const saved = localStorage.getItem("new_case_draft");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setFormData(parsed);
+          const cat = getCategoryForCase(parsed.case);
+          if (cat) setExpandedCategory(cat.id);
+        } catch {}
+      } else {
+        setFormData({
+          firstName: "",
+          lastName: "",
+          date: "",
+          case: "",
+          caseCategory: "",
+          sanction: "",
+          progress: "Pending",
+          level: "",
+          section: "",
+          adviser: "",
+          uploadedProofs: [],
+        });
+        setExpandedCategory("behavioural");
+      }
+    }
+  }, [isOpen]);
+
+  const handleSelectCase = (categoryId: string, caseName: string) => {
+    setFormData((p) => ({ ...p, case: caseName, caseCategory: categoryId }));
+  };
+
+  const handleUploadProof = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((p) => ({
+        ...p,
+        uploadedProofs: [...p.uploadedProofs, { name: file.name, data: reader.result as string }],
+      }));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleDeleteProof = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    setFormData((p) => ({ ...p, uploadedProofs: p.uploadedProofs.filter((_, i) => i !== index) }));
+  };
 
   const handleNext = () => {
     setIsEditingReview(false);
     setSubmitError("");
-    setCurrentStep(Math.min(currentStep + 1, 3));
+    setCurrentStep((s) => Math.min(s + 1, 4));
   };
   const handleBack = () => {
     setIsEditingReview(false);
     setSubmitError("");
-    setCurrentStep(Math.max(currentStep - 1, 1));
+    setCurrentStep((s) => Math.max(s - 1, 1));
   };
 
   const resetForm = () => {
     setCurrentStep(1);
     setIsEditingReview(false);
     setSubmitError("");
+    setExpandedCategory("behavioural");
     setFormData({
       firstName: "",
       lastName: "",
       date: "",
       case: "",
+      caseCategory: "",
       sanction: "",
       progress: "Pending",
       level: "",
       section: "",
-      adviser: ""
+      adviser: "",
+      uploadedProofs: [],
     });
   };
 
   const handleFileCase = async () => {
     setSubmitError("");
     setIsSubmitting(true);
-
     try {
-      await invoke("add_case", {
+      const newCaseId = await invoke<number>("add_case", {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         level: formData.level.trim(),
@@ -74,6 +264,18 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
         progress: formData.progress,
       });
 
+      if (formData.uploadedProofs.length > 0) {
+        localStorage.setItem(`case_proofs_${newCaseId}`, JSON.stringify(formData.uploadedProofs));
+      }
+
+      localStorage.removeItem("new_case_draft");
+
+      const autoBackup = localStorage.getItem("backup_settings_auto") !== "false";
+      const freq = localStorage.getItem("backup_settings_freq") || "Daily";
+      if (autoBackup && freq === "On New Record") {
+        try { await invoke("create_backup"); } catch {}
+      }
+
       window.dispatchEvent(new Event("cases:changed"));
       onClose();
       resetForm();
@@ -84,180 +286,274 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
     }
   };
 
+  if (!isOpen) return null;
+
+  const STEPS = ["Case type", "Student info", "Attach proofs", "Review"];
+  const activeCat = getCategoryForCase(formData.case);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Dimmed Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
-      />
-      
-      {/* Modal Panel */}
-      <div className="relative w-full max-w-[1000px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-        
-        {/* Header */}
-        <div className="px-8 py-6 bg-surface flex justify-between items-start border-b border-outline-variant shrink-0">
-          <div>
-            <span className="text-primary font-bold text-xs tracking-widest uppercase">New Case Workflow</span>
-            <h2 className="text-[28px] font-extrabold text-on-surface mt-1 leading-none">File New Case</h2>
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseAttempt} />
+
+      {/* Panel */}
+      <div className="relative w-full max-w-[960px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+
+        {/* ── Header ── */}
+        <div className="px-7 py-4 bg-surface flex items-center justify-between border-b border-outline-variant shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#0B1E43] flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-white" style={{ fontSize: 18 }}>folder_open</span>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold tracking-widest uppercase text-secondary">Guidance Office</p>
+              <h2 className="text-[19px] font-extrabold text-on-surface leading-tight">File New Case</h2>
+            </div>
           </div>
-          <button onClick={onClose} className="text-secondary hover:text-on-surface transition-colors p-1">
-            <span className="material-symbols-outlined">close</span>
+          <button onClick={handleCloseAttempt} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-secondary hover:text-on-surface transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
           </button>
         </div>
 
-        {/* Steps */}
-        <div className="px-8 py-6 bg-surface border-b border-outline-variant shrink-0 flex gap-4">
-          {steps.map((label, idx) => {
-            const stepNumber = idx + 1;
-            const isActive = currentStep === stepNumber;
-            const isCompleted = currentStep > stepNumber;
-            
-            return (
-              <div 
-                key={idx} 
-                className={`flex-1 p-4 rounded-xl border transition-all ${
-                  isActive 
-                    ? "border-primary bg-primary/5" 
-                    : "border-outline-variant bg-surface opacity-70"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    isActive ? "border-primary" : isCompleted ? "border-primary bg-primary" : "border-outline-variant"
-                  }`}>
-                    {isActive && <div className="w-2.5 h-2.5 bg-primary rounded-full" />}
-                    {isCompleted && <span className="material-symbols-outlined text-white" style={{ fontSize: '14px' }}>check</span>}
-                  </div>
-                  <div>
-                    <div className={`text-[10px] font-bold tracking-widest uppercase ${
-                      isActive ? "text-primary" : "text-secondary"
+        {/* ── Step Progress Bar ── */}
+        <div className="px-7 py-2.5 bg-surface border-b border-outline-variant shrink-0">
+          <div className="flex items-center w-full max-w-2xl mx-auto px-4">
+            {STEPS.map((label, idx) => {
+              const n = idx + 1;
+              const isActive = currentStep === n;
+              const isDone = currentStep > n;
+              return (
+                <Fragment key={idx}>
+                  <div className={`flex items-center gap-2 shrink-0 py-1.5 px-2.5 rounded-xl transition-all ${isActive ? "bg-[#0B1E43]/6" : ""}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold transition-all ${
+                      isDone ? "bg-[#0B1E43] text-white" : isActive ? "bg-[#0B1E43] text-white" : "bg-surface-container text-secondary border border-outline-variant"
                     }`}>
-                      STEP {stepNumber}
+                      {isDone ? (
+                        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>check</span>
+                      ) : (
+                        n
+                      )}
                     </div>
-                    <div className={`text-sm font-bold mt-0.5 whitespace-nowrap ${
-                      isActive ? "text-on-surface" : "text-secondary"
-                    }`}>
+                    <span className={`text-xs sm:text-[13px] font-bold transition-colors ${isActive ? "text-on-surface" : "text-secondary"}`}>
                       {label}
-                    </div>
+                    </span>
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                  {idx < STEPS.length - 1 && (
+                    <div className={`h-px flex-grow mx-2 sm:mx-4 transition-colors ${isDone ? "bg-[#0B1E43]/40" : "bg-outline-variant"}`} />
+                  )}
+                </Fragment>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-8 overflow-y-auto flex-grow bg-surface-container-low">
-          {/* STEP 1 — Case Details */}
+        {/* ── Body ── */}
+        <div className="overflow-y-auto flex-grow px-7 py-5 bg-surface-container-low">
+
+          {/* STEP 1 — Case Type Picker */}
           {currentStep === 1 && (
-            <div className="grid grid-cols-1 gap-6 animate-fade-in items-start max-w-2xl mx-auto">
-              <div className="bg-surface rounded-2xl border border-outline-variant p-6 shadow-sm">
-                <div className="text-primary text-[10px] font-bold tracking-widest uppercase mb-1">Manual</div>
-                <h3 className="text-xl font-bold text-on-surface mb-6">Case Details</h3>
-                
-                <div className="space-y-6">
+            <div className="flex flex-col gap-4 max-w-2xl mx-auto animate-fade-in">
+
+              {/* Selected case callout */}
+              {formData.case ? (
+                <div className="flex items-center gap-3 rounded-xl px-4 py-3 border"
+                  style={{ background: activeCat?.bg ?? "#F1EFE8", borderColor: activeCat?.border ?? "#D3D1C7" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: activeCat?.color }}>check_circle</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: activeCat?.color }}>
+                      {activeCat?.label}
+                    </p>
+                    <p className="text-sm font-bold text-on-surface truncate">{formData.case}</p>
+                  </div>
+                  <button
+                    onClick={() => setFormData((p) => ({ ...p, case: "", caseCategory: "" }))}
+                    className="text-secondary hover:text-on-surface transition-colors"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-surface border border-outline-variant px-4 py-3 text-sm text-secondary">
+                  Select a case type below, or type a custom description.
+                </div>
+              )}
+
+              {/* Category accordion */}
+              <div className="flex flex-col gap-2">
+                {CASE_CATEGORIES.map((cat) => {
+                  const isOpen = expandedCategory === cat.id;
+                  return (
+                    <div key={cat.id} className="rounded-xl border border-outline-variant bg-surface overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedCategory(isOpen ? null : cat.id)}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-container transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: cat.color }} />
+                          <span className="text-sm font-bold text-on-surface">{cat.label}</span>
+                          <span className="text-[11px] text-secondary">({cat.cases.length})</span>
+                        </div>
+                        <span className="material-symbols-outlined text-secondary transition-transform" style={{ fontSize: 18, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                          expand_more
+                        </span>
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 pb-3 pt-0 grid grid-cols-2 gap-1.5">
+                          {cat.cases.map((c) => {
+                            const isSelected = formData.case === c;
+                            return (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => handleSelectCase(cat.id, c)}
+                                className="text-left text-xs px-3 py-2 rounded-lg border transition-all font-medium"
+                                style={isSelected
+                                  ? { background: cat.bg, borderColor: cat.color, color: cat.color }
+                                  : { background: "transparent", borderColor: "var(--outline-variant, #cac4d0)", color: "var(--on-surface, #1c1b1f)" }
+                                }
+                              >
+                                {c}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Custom case fallback */}
+              <div className="bg-surface rounded-xl border border-outline-variant p-4">
+                <label className="block text-[11px] font-bold text-secondary uppercase tracking-wider mb-2">
+                  Custom case description
+                </label>
+                <input
+                  type="text"
+                  placeholder="Describe a case not listed above…"
+                  value={formData.case}
+                  onChange={(e) => setFormData((p) => ({ ...p, case: e.target.value, caseCategory: "custom" }))}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2 — Incident Details + Student Info */}
+          {currentStep === 2 && (
+            <div className="flex flex-col gap-4 max-w-2xl mx-auto animate-fade-in">
+
+              {/* Case badge reminder */}
+              {formData.case && activeCat && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold"
+                  style={{ background: activeCat.bg, color: activeCat.color, border: `1px solid ${activeCat.border}` }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>label</span>
+                  {formData.case}
+                </div>
+              )}
+
+              {/* Incident block */}
+              <div className="bg-surface rounded-xl border border-outline-variant p-5">
+                <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Incident details</p>
+                <div className="flex flex-col gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Case (case type/description)</label>
-                    <input 
-                      type="text" placeholder="e.g. Truancy"
-                      value={formData.case} onChange={(e) => setFormData({...formData, case: e.target.value})}
-                      className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Date of incident</label>
+                    <input
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Date</label>
-                    <input 
-                      type="date" 
-                      value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})}
-                      className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Sanction / action taken</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Describe the sanction or action taken…"
+                      value={formData.sanction}
+                      onChange={(e) => setFormData({ ...formData, sanction: e.target.value })}
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Sanction</label>
-                    <textarea 
-                      rows={3} placeholder="e.g. Warning issued"
-                      value={formData.sanction} onChange={(e) => setFormData({...formData, sanction: e.target.value})}
-                      className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-3">Progress</label>
-                    <div className="flex gap-3">
-                      {["Pending", "Ongoing", "Resolved"].map((status) => (
-                        <button 
-                          key={status} type="button"
-                          onClick={() => setFormData({...formData, progress: status})}
-                          className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm border transition-all flex items-center justify-center gap-2 ${
-                            formData.progress === status 
-                              ? "border-primary bg-primary/10 text-primary" 
-                              : "border-outline-variant bg-surface text-secondary hover:bg-surface-container"
-                          }`}
+                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Case status</label>
+                    <div className="flex gap-2">
+                      {PROGRESS_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, progress: opt.value })}
+                          className="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all text-left"
+                          style={formData.progress === opt.value
+                            ? { background: opt.bg, borderColor: opt.dot, color: opt.text }
+                            : { background: "transparent", borderColor: "var(--outline-variant)", color: "var(--on-surface-variant)" }
+                          }
                         >
-                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            formData.progress === status ? "border-primary" : "border-outline-variant"
-                          }`}>
-                            {formData.progress === status && <div className="w-2 h-2 bg-primary rounded-full" />}
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: formData.progress === opt.value ? opt.dot : "var(--outline-variant)" }} />
+                            <div>
+                              <div>{opt.label}</div>
+                              <div className="font-normal opacity-70 text-[10px]">{opt.desc}</div>
+                            </div>
                           </div>
-                          {status}
                         </button>
                       ))}
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* STEP 2 — Student Information */}
-          {currentStep === 2 && (
-            <div className="grid grid-cols-1 gap-6 animate-fade-in items-start max-w-2xl mx-auto">
-              <div className="bg-surface rounded-2xl border border-outline-variant p-6 shadow-sm">
-                <div className="text-primary text-[10px] font-bold tracking-widest uppercase mb-1">Manual</div>
-                <h3 className="text-xl font-bold text-on-surface mb-6">Student Information</h3>
-                
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Student block */}
+              <div className="bg-surface rounded-xl border border-outline-variant p-5">
+                <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Student information</p>
+                <div className="flex flex-col gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">First Name</label>
-                      <input 
-                        type="text" placeholder="e.g. John"
-                        value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                        className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">First name</label>
+                      <input
+                        type="text" placeholder="e.g. Juan"
+                        value={formData.firstName}
+                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Last Name</label>
-                      <input 
-                        type="text" placeholder="e.g. Doe"
-                        value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                        className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Last name</label>
+                      <input
+                        type="text" placeholder="e.g. Dela Cruz"
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Level</label>
-                    <input 
+                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Grade level</label>
+                    <input
                       type="text" placeholder="e.g. Grade 10"
-                      value={formData.level} onChange={(e) => setFormData({...formData, level: e.target.value})}
-                      className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                      value={formData.level}
+                      onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Section</label>
-                      <input 
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Section</label>
+                      <input
                         type="text" placeholder="e.g. Rizal"
-                        value={formData.section} onChange={(e) => setFormData({...formData, section: e.target.value})}
-                        className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        value={formData.section}
+                        onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Adviser</label>
-                      <input 
-                        type="text" placeholder="e.g. Mr. Smith"
-                        value={formData.adviser} onChange={(e) => setFormData({...formData, adviser: e.target.value})}
-                        className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Adviser</label>
+                      <input
+                        type="text" placeholder="e.g. Mr. Santos"
+                        value={formData.adviser}
+                        onChange={(e) => setFormData({ ...formData, adviser: e.target.value })}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                   </div>
@@ -266,160 +562,306 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
             </div>
           )}
 
-          {/* STEP 3 - REVIEW */}
+          {/* STEP 3 — Attach Proofs */}
           {currentStep === 3 && (
-            <div className="grid grid-cols-1 gap-6 animate-fade-in items-start max-w-4xl mx-auto">
-              <div className="bg-surface rounded-2xl border border-outline-variant p-6 shadow-sm">
-                <div className="flex justify-between items-start mb-6">
+            <div className="flex flex-col gap-4 max-w-2xl mx-auto animate-fade-in">
+              <div className="bg-surface rounded-xl border border-outline-variant p-5">
+                <div className="flex items-start justify-between mb-4">
                   <div>
-                    <div className="text-primary text-[10px] font-bold tracking-widest uppercase mb-1">Summary</div>
-                    <h3 className="text-xl font-bold text-on-surface">Review & Edit</h3>
+                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-0.5">Optional</p>
+                    <h3 className="text-base font-bold text-on-surface">Attach documentation</h3>
+                    <p className="text-xs text-secondary mt-0.5">Photos, screenshots, or scanned documents.</p>
                   </div>
-                  <button 
-                    onClick={() => setIsEditingReview(!isEditingReview)} 
-                    className="text-secondary hover:text-primary text-sm font-bold flex items-center gap-1 bg-surface-container hover:bg-surface-container-low px-4 py-2 rounded-lg transition-colors border border-outline-variant"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">
-                      {isEditingReview ? "check" : "edit"}
-                    </span> 
-                    {isEditingReview ? "Done Editing" : "Edit All Fields"}
-                  </button>
+                  <label className="flex items-center gap-1.5 bg-[#0B1E43] text-white text-xs font-bold py-2 px-4 rounded-lg cursor-pointer hover:bg-[#0F2451] transition-colors shrink-0">
+                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>upload</span>
+                    Add file
+                    <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} />
+                  </label>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">First Name</label>
-                    <input 
-                      type="text" value={formData.firstName} disabled={!isEditingReview}
-                      onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                      className="w-full bg-surface disabled:bg-surface-container disabled:text-secondary border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Last Name</label>
-                    <input 
-                      type="text" value={formData.lastName} disabled={!isEditingReview}
-                      onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                      className="w-full bg-surface disabled:bg-surface-container disabled:text-secondary border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Level</label>
-                    <input 
-                      type="text" value={formData.level} disabled={!isEditingReview}
-                      onChange={(e) => setFormData({...formData, level: e.target.value})}
-                      className="w-full bg-surface disabled:bg-surface-container disabled:text-secondary border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Section</label>
-                    <input 
-                      type="text" value={formData.section} disabled={!isEditingReview}
-                      onChange={(e) => setFormData({...formData, section: e.target.value})}
-                      className="w-full bg-surface disabled:bg-surface-container disabled:text-secondary border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Date</label>
-                    <input 
-                      type="date" value={formData.date} disabled={!isEditingReview}
-                      onChange={(e) => setFormData({...formData, date: e.target.value})}
-                      className="w-full bg-surface disabled:bg-surface-container disabled:text-secondary border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Adviser</label>
-                    <input 
-                      type="text" value={formData.adviser} disabled={!isEditingReview}
-                      onChange={(e) => setFormData({...formData, adviser: e.target.value})}
-                      className="w-full bg-surface disabled:bg-surface-container disabled:text-secondary border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Case</label>
-                    <input 
-                      type="text" value={formData.case} disabled={!isEditingReview}
-                      onChange={(e) => setFormData({...formData, case: e.target.value})}
-                      className="w-full bg-surface disabled:bg-surface-container disabled:text-secondary border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Sanction</label>
-                    <input 
-                      type="text" value={formData.sanction} disabled={!isEditingReview}
-                      onChange={(e) => setFormData({...formData, sanction: e.target.value})}
-                      className="w-full bg-surface disabled:bg-surface-container disabled:text-secondary border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Progress</label>
-                    {isEditingReview ? (
-                      <select 
-                        value={formData.progress} onChange={(e) => setFormData({...formData, progress: e.target.value})}
-                        className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-colors"
+
+                {formData.uploadedProofs.length === 0 ? (
+                  <label className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-outline-variant rounded-xl p-10 cursor-pointer hover:border-primary hover:bg-primary/5 transition-all group">
+                    <span className="material-symbols-outlined text-secondary group-hover:text-primary transition-colors" style={{ fontSize: 36 }}>add_photo_alternate</span>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-on-surface">Drop files here or click to upload</p>
+                      <p className="text-xs text-secondary mt-0.5">Supports JPG, PNG, GIF, WEBP</p>
+                    </div>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} />
+                  </label>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    {formData.uploadedProofs.map((proof, idx) => (
+                      <div
+                        key={idx}
+                        className="group relative rounded-xl overflow-hidden border border-outline-variant cursor-pointer aspect-video bg-surface-container"
+                        onClick={() => setSelectedProofUrl(proof.data)}
                       >
-                        <option>Pending</option>
-                        <option>Ongoing</option>
-                        <option>Resolved</option>
-                      </select>
-                    ) : (
-                      <input 
-                        type="text" value={formData.progress} disabled={true}
-                        className="w-full bg-surface-container text-secondary border border-outline-variant rounded-xl p-3 text-sm transition-colors"
+                        <img src={proof.data} alt={proof.name} className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="material-symbols-outlined text-white" style={{ fontSize: 28 }}>zoom_in</span>
+                        </div>
+                        <button
+                          onClick={(e) => handleDeleteProof(e, idx)}
+                          className="absolute top-2 right-2 w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all shadow"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                        </button>
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 pt-4 pb-1.5">
+                          <p className="text-white text-[10px] font-medium truncate">{proof.name}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Add more button */}
+                    <label className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-outline-variant cursor-pointer hover:border-primary hover:bg-primary/5 transition-all aspect-video group">
+                      <span className="material-symbols-outlined text-secondary group-hover:text-primary transition-colors" style={{ fontSize: 24 }}>add</span>
+                      <span className="text-xs text-secondary group-hover:text-primary font-medium transition-colors">Add more</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} />
+                    </label>
+                  </div>
+                )}
+
+                {formData.uploadedProofs.length > 0 && (
+                  <p className="text-xs text-secondary mt-3">{formData.uploadedProofs.length} file{formData.uploadedProofs.length !== 1 ? "s" : ""} attached</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4 — Review */}
+          {currentStep === 4 && (
+            <div className="flex flex-col gap-4 max-w-2xl mx-auto animate-fade-in">
+
+              {/* Edit toggle banner */}
+              <div className="flex items-center justify-between bg-surface rounded-xl border border-outline-variant px-4 py-3">
+                <div className="flex items-center gap-2 text-sm text-on-surface font-bold">
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{isEditingReview ? "edit" : "fact_check"}</span>
+                  {isEditingReview ? "Editing fields — click Done when finished" : "Review before filing"}
+                </div>
+                <button
+                  onClick={() => setIsEditingReview((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border border-outline-variant hover:bg-surface-container transition-colors text-secondary hover:text-on-surface"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                    {isEditingReview ? "check" : "edit"}
+                  </span>
+                  {isEditingReview ? "Done" : "Edit fields"}
+                </button>
+              </div>
+
+              {/* Case type */}
+              <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-outline-variant">
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Case type</p>
+                </div>
+                <div className="px-4 py-3 flex items-center gap-3">
+                  {activeCat && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: activeCat.bg, color: activeCat.color, border: `1px solid ${activeCat.border}` }}>
+                      {activeCat.label}
+                    </span>
+                  )}
+                  {isEditingReview ? (
+                    <input
+                      type="text" value={formData.case}
+                      onChange={(e) => setFormData({ ...formData, case: e.target.value })}
+                      className="flex-1 bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                    />
+                  ) : (
+                    <span className="text-sm font-bold text-on-surface">{formData.case || <span className="text-secondary italic font-normal">Not set</span>}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Incident details */}
+              <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-outline-variant">
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Incident details</p>
+                </div>
+                <div className="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-3">
+                  {[
+                    { label: "Date", key: "date", type: "date" },
+                    { label: "Status", key: "progress", type: "text" },
+                  ].map(({ label, key, type }) => (
+                    <div key={key}>
+                      <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
+                      {isEditingReview && key !== "progress" ? (
+                        <input type={type} value={(formData as any)[key]}
+                          onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        />
+                      ) : isEditingReview && key === "progress" ? (
+                        <select value={formData.progress} onChange={(e) => setFormData({ ...formData, progress: e.target.value })}
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none">
+                          {PROGRESS_OPTIONS.map(o => <option key={o.value}>{o.value}</option>)}
+                        </select>
+                      ) : (
+                        <p className="text-sm text-on-surface font-medium">{(formData as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}</p>
+                      )}
+                    </div>
+                  ))}
+                  <div className="col-span-2">
+                    <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">Sanction</p>
+                    {isEditingReview ? (
+                      <textarea value={formData.sanction} rows={2}
+                        onChange={(e) => setFormData({ ...formData, sanction: e.target.value })}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
                       />
+                    ) : (
+                      <p className="text-sm text-on-surface font-medium">{formData.sanction || <span className="text-secondary italic font-normal">Not set</span>}</p>
                     )}
                   </div>
                 </div>
               </div>
+
+              {/* Student info */}
+              <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-outline-variant">
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Student information</p>
+                </div>
+                <div className="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-3">
+                  {[
+                    { label: "First name", key: "firstName" },
+                    { label: "Last name", key: "lastName" },
+                    { label: "Grade level", key: "level" },
+                    { label: "Section", key: "section" },
+                    { label: "Adviser", key: "adviser" },
+                  ].map(({ label, key }) => (
+                    <div key={key}>
+                      <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
+                      {isEditingReview ? (
+                        <input type="text" value={(formData as any)[key]}
+                          onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        />
+                      ) : (
+                        <p className="text-sm text-on-surface font-medium">{(formData as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Attachments */}
+              <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-outline-variant flex items-center justify-between">
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Attachments</p>
+                  <span className="text-[10px] text-secondary">{formData.uploadedProofs.length} file{formData.uploadedProofs.length !== 1 ? "s" : ""}</span>
+                </div>
+                <div className="px-4 py-3">
+                  {formData.uploadedProofs.length === 0 ? (
+                    <p className="text-xs text-secondary italic">No files attached.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.uploadedProofs.map((p, i) => (
+                        <div key={i} className="flex items-center gap-1.5 bg-surface-container border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface max-w-[180px]">
+                          <span className="material-symbols-outlined text-secondary" style={{ fontSize: 13 }}>image</span>
+                          <span className="truncate">{p.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Footer Buttons */}
-        <div className="px-8 py-5 border-t border-outline-variant bg-surface shrink-0 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-5 py-2.5 border border-outline-variant rounded-xl font-bold text-sm text-on-surface hover:bg-surface-container transition-colors">
-              <span className="material-symbols-outlined text-[20px]">save</span> Save Draft
-            </button>
-            <span className={`text-xs font-bold uppercase tracking-widest hidden md:inline-block ${submitError ? "text-error" : "text-secondary/70"}`}>
-              {submitError || "No Draft Not saved yet"}
-            </span>
+        {/* ── Footer ── */}
+        <div className="px-7 py-3.5 border-t border-outline-variant bg-surface shrink-0 flex items-center justify-between">
+          <div>
+            {submitError && (
+              <p className="text-[11px] font-bold text-error uppercase tracking-widest">{submitError}</p>
+            )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {currentStep > 1 && (
-              <button 
-                onClick={handleBack}
-                className="px-6 py-2.5 border border-outline-variant text-on-surface hover:bg-surface-container font-bold text-sm rounded-xl transition-colors"
-              >
+              <button onClick={handleBack} className="px-4 py-2 border border-outline-variant text-on-surface hover:bg-surface-container font-bold text-xs rounded-lg transition-colors">
                 Back
               </button>
             )}
-            <button 
-              onClick={onClose}
-              className="px-6 py-2.5 border border-outline-variant text-on-surface hover:bg-surface-container font-bold text-sm rounded-xl transition-colors"
-            >
+            <button onClick={handleCloseAttempt} className="px-4 py-2 border border-outline-variant text-on-surface hover:bg-surface-container font-bold text-xs rounded-lg transition-colors">
               Cancel
             </button>
-            {currentStep < 3 ? (
-              <button 
+            {currentStep < 4 ? (
+              <button
                 onClick={handleNext}
-                className="px-6 py-2.5 bg-[#0F172A] text-white hover:bg-black font-bold text-sm rounded-xl transition-colors flex items-center gap-2"
+                disabled={currentStep === 1 && !formData.case.trim()}
+                className="px-5 py-2 bg-[#0B1E43] text-white hover:bg-[#0F2451] disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
               >
-                Next <span className="material-symbols-outlined text-[16px]">arrow_forward_ios</span>
+                Continue
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span>
               </button>
             ) : (
-              <button 
+              <button
                 onClick={handleFileCase}
                 disabled={isSubmitting}
-                className="px-6 py-2.5 bg-[#0F172A] text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed font-bold text-sm rounded-xl transition-colors flex items-center gap-2"
+                className="px-5 py-2 bg-[#0B1E43] text-white hover:bg-[#0F2451] disabled:opacity-60 disabled:cursor-not-allowed font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
               >
-                {isSubmitting ? "Saving..." : "File Case"} <span className="material-symbols-outlined text-[16px]">check</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check</span>
+                {isSubmitting ? "Saving…" : "File case"}
               </button>
             )}
           </div>
         </div>
-
       </div>
+
+      {/* ── Confirm Close Overlay ── */}
+      {showConfirmClose && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center">
+            <span className="material-symbols-outlined text-5xl mx-auto" style={{ color: "#d97706" }}>warning</span>
+            <div>
+              <h3 className="text-base font-bold text-on-surface">Unsaved changes</h3>
+              <p className="text-xs text-secondary mt-1.5 leading-relaxed">
+                Save as a draft to continue later, or discard your progress.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  localStorage.setItem("new_case_draft", JSON.stringify(formData));
+                  setShowConfirmClose(false);
+                  onClose();
+                }}
+                className="w-full py-2.5 bg-[#0B1E43] text-white font-bold text-xs rounded-xl hover:bg-[#0F2451] transition-all"
+              >
+                Save draft & close
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.removeItem("new_case_draft");
+                  setShowConfirmClose(false);
+                  onClose();
+                }}
+                className="w-full py-2.5 border border-red-300 text-red-600 font-bold text-xs rounded-xl hover:bg-red-50 transition-all"
+              >
+                Discard changes
+              </button>
+              <button
+                onClick={() => setShowConfirmClose(false)}
+                className="w-full py-2.5 border border-outline-variant text-on-surface font-bold text-xs rounded-xl hover:bg-surface-container transition-all"
+              >
+                Keep editing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Lightbox ── */}
+      {selectedProofUrl && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={() => setSelectedProofUrl(null)} />
+          <div className="relative z-10 max-w-4xl max-h-[88vh] bg-surface rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <button
+              onClick={() => setSelectedProofUrl(null)}
+              className="absolute top-3 right-3 w-8 h-8 bg-black/60 text-white hover:bg-black rounded-full flex items-center justify-center transition-all"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+            </button>
+            <img src={selectedProofUrl} alt="Full size proof" className="max-w-full max-h-[85vh] object-contain rounded-2xl" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
