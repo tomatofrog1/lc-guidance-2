@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { useState, ReactNode } from "react";
 import Sidebar from "./Sidebar";
 import TopAppBar from "./TopAppBar";
 import FileNewCaseModal from "./FileNewCaseModal";
@@ -12,8 +11,6 @@ interface LayoutProps {
 
 export default function Layout({ children, title, pageKey }: LayoutProps) {
   const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false);
-  const location = useLocation();
-  const title = getTitle(location.pathname);
 
   return (
     <div className="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen overflow-x-hidden">

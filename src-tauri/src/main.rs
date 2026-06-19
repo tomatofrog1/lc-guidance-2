@@ -24,7 +24,11 @@ fn main() {
             commands::add_case,
             commands::update_case,
             commands::delete_case,
-            commands::get_case
+            commands::get_case,
+            commands::copy_generated_proof,
+            commands::get_backups,
+            commands::create_backup,
+            commands::restore_backup
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
