@@ -15,8 +15,9 @@ const MONTHS = [
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-export default function DatePicker({ value, onChange, label, prefix, placeholder = "Pick a date" }: DatePickerProps) {
+export default function DatePicker({ value, onChange, prefix, placeholder = "Pick a date" }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
+
   const [currentDate, setCurrentDate] = useState(() => {
     if (value) {
       const parsed = new Date(value);
@@ -45,10 +46,10 @@ export default function DatePicker({ value, onChange, label, prefix, placeholder
       }
     }
     if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("click", handleClickOutside);
     }
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
     };
   }, [isOpen]);
 
@@ -112,30 +113,46 @@ export default function DatePicker({ value, onChange, label, prefix, placeholder
   };
 
   return (
-    <div className="relative" ref={popoverRef}>
-      <div className="flex flex-col gap-1">
-        {label && (
-          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider pl-1">{label}</span>
-        )}
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-2 px-4 h-[38px] rounded-full border text-sm transition-all text-left justify-between min-w-[180px] ${
-            isOpen 
-              ? "bg-surface-container border-primary ring-2 ring-primary/20 shadow-sm" 
-              : "bg-surface border-outline-variant hover:bg-surface-container hover:border-outline transition-colors text-on-surface"
-          }`}
-        >
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="material-symbols-outlined text-secondary shrink-0" style={{ fontSize: 18 }}>calendar_today</span>
-            {prefix && <span className="text-secondary text-[11px] font-bold uppercase tracking-wider shrink-0">{prefix}</span>}
+    <div className="relative shrink-0" ref={popoverRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center h-[38px] rounded-full border text-sm transition-all duration-300 ease-in-out text-left select-none relative overflow-hidden w-[260px] pl-3.5 pr-8 ${
+          isOpen 
+            ? "bg-surface-container border-primary ring-2 ring-primary/20 shadow-sm" 
+            : "bg-surface border-outline-variant hover:bg-surface-container"
+        }`}
+      >
+        <div className="flex items-center gap-1.5 min-w-0 w-full">
+          <span className="material-symbols-outlined text-secondary shrink-0" style={{ fontSize: 18 }}>calendar_today</span>
+          
+          <div className="flex items-center gap-1 min-w-0 transition-opacity duration-200 opacity-100 w-auto">
+            {prefix && (
+              <span className="text-secondary text-[11px] font-bold uppercase tracking-wider shrink-0">{prefix}</span>
+            )}
             <span className={`truncate text-sm ${value ? "font-bold text-on-surface" : "text-secondary font-normal"}`}>
               {displayLabel()}
             </span>
           </div>
-          <span className="material-symbols-outlined text-secondary opacity-60 shrink-0" style={{ fontSize: 16 }}>expand_more</span>
+        </div>
+
+        {isOpen && (
+          <span className="material-symbols-outlined text-secondary opacity-60 shrink-0 absolute right-2.5" style={{ fontSize: 16 }}>expand_more</span>
+        )}
+      </button>
+
+      {value && !isOpen && (
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            onChange("");
+          }}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary hover:text-on-surface hover:bg-surface-container-high rounded-full w-5 h-5 flex items-center justify-center transition-colors z-10"
+          title="Clear date"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
         </button>
-      </div>
+      )}
 
       {/* Floating Popover Calendar */}
       {isOpen && (

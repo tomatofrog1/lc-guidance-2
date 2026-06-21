@@ -10,6 +10,7 @@ interface Case {
   section: string;
   adviser: string;
   date: string;
+  date_filed: string;
   case: string;
   sanction: string;
   progress: string;
@@ -142,7 +143,6 @@ export default function PendingCases() {
   const handleUpdateProgress = async (caseId: number, newProgress: string) => {
     const caseRecord = cases.find(c => c.id === caseId);
     if (!caseRecord) return;
-    
     setResolvingId(caseId);
     try {
       await invoke("update_case", { 
@@ -152,6 +152,7 @@ export default function PendingCases() {
         level: caseRecord.level,
         section: caseRecord.section,
         date: caseRecord.date,
+        dateFiled: caseRecord.date_filed,
         adviser: caseRecord.adviser,
         case: caseRecord.case,
         sanction: caseRecord.sanction,
@@ -198,14 +199,14 @@ export default function PendingCases() {
 
   const sortedCases = useMemo(() => {
     return [...filteredCases].sort((a, b) => {
-      const timeA = new Date(a.date).getTime();
-      const timeB = new Date(b.date).getTime();
+      const timeA = new Date(a.date_filed || a.date).getTime();
+      const timeB = new Date(b.date_filed || b.date).getTime();
       return dateSort === "desc" ? timeB - timeA : timeA - timeB;
     });
   }, [filteredCases, dateSort]);
 
   const cat = selectedCase ? getCategoryForCase(selectedCase.case) : null;
-  const detailIndicator = selectedCase ? getPendingIndicator(selectedCase.date) : null;
+  const detailIndicator = selectedCase ? getPendingIndicator(selectedCase.date_filed || selectedCase.date) : null;
 
   return (
     <div 
@@ -307,7 +308,7 @@ export default function PendingCases() {
                   const isSelected = selectedId === c.id;
                   const isExiting  = resolvedIds.has(c.id);
                   const itemCat    = getCategoryForCase(c.case);
-                  const indicator  = getPendingIndicator(c.date);
+                  const indicator  = getPendingIndicator(c.date_filed || c.date);
                   return (
                     <button
                       key={c.id}
@@ -403,7 +404,7 @@ export default function PendingCases() {
                     <div>
                       <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">Date filed</p>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-on-surface">{formatDate(selectedCase.date)}</p>
+                        <p className="text-sm font-bold text-on-surface">{formatDate(selectedCase.date_filed)}</p>
                         {detailIndicator && (
                           <span 
                             className="text-[9px] font-bold px-1.5 py-0.5 rounded border inline-flex items-center gap-1"
