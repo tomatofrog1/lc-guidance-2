@@ -13,6 +13,7 @@ interface Case {
   date: string;
   date_filed: string;
   case: string;
+  description: string;
   sanction: string;
   progress: string;
 }
@@ -157,6 +158,7 @@ export default function PendingCases() {
         dateFiled: caseRecord.date_filed,
         adviser: caseRecord.adviser,
         case: caseRecord.case,
+        description: caseRecord.description,
         sanction: caseRecord.sanction,
         progress: newProgress 
       });

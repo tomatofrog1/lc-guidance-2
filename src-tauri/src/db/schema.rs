@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS cases (
   date_filed TEXT NOT NULL DEFAULT '',
   adviser    TEXT NOT NULL,
   "case"     TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
   sanction   TEXT NOT NULL,
   progress   TEXT NOT NULL DEFAULT 'Pending'
 );
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS cases (
     let mut rows = stmt.query([])?;
     let mut has_date_filed = false;
     let mut has_middle_initial = false;
+    let mut has_description = false;
     while let Some(row) = rows.next()? {
         let name: String = row.get(1)?;
         if name == "date_filed" {
@@ -33,6 +35,9 @@ CREATE TABLE IF NOT EXISTS cases (
         }
         if name == "middle_initial" {
             has_middle_initial = true;
+        }
+        if name == "description" {
+            has_description = true;
         }
     }
 
@@ -49,6 +54,14 @@ UPDATE cases SET date_filed = date WHERE date_filed = '';
         connection.execute_batch(
             r#"
 ALTER TABLE cases ADD COLUMN middle_initial TEXT NOT NULL DEFAULT '';
+"#,
+        )?;
+    }
+
+    if !has_description {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN description TEXT NOT NULL DEFAULT '';
 "#,
         )?;
     }

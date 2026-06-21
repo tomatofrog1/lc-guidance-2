@@ -139,6 +139,7 @@ const emptyFormData = () => ({
   date: getTodayDateString(),
   case: "",
   caseCategory: "",
+  description: "",
   sanction: "",
   progress: "Pending",
   level: "",
@@ -206,6 +207,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
     !formData.middleInitial.trim() &&
     !formData.date &&
     !formData.case.trim() &&
+    !formData.description.trim() &&
     !formData.sanction.trim() &&
     !formData.level.trim() &&
     !formData.section.trim() &&
@@ -376,6 +378,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
         dateFiled: new Date().toISOString(),
         adviser: normalized.adviser,
         case: normalized.case.trim(),
+        description: normalized.description.trim(),
         sanction: normalized.sanction.trim(),
         progress: normalized.progress,
       });
@@ -404,7 +407,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
 
   if (!isOpen && !isVisible) return null;
 
-  const STEPS = ["Case type", "Student info", "Attach proofs", "Review"];
+  const STEPS = ["Case type", "Student info", "Proofs and Description", "Review"];
   const activeCat = getCategoryForCase(formData.case);
 
   return (
@@ -727,7 +730,6 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
               <div className="bg-surface rounded-xl border border-outline-variant p-5">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-0.5">Optional</p>
                     <h3 className="text-base font-bold text-on-surface">Attach documentation</h3>
                     <p className="text-xs text-secondary mt-0.5">Photos, screenshots, or scanned documents.</p>
                   </div>
@@ -782,6 +784,20 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                 {formData.uploadedProofs.length > 0 && (
                   <p className="text-xs text-secondary mt-3">{formData.uploadedProofs.length} file{formData.uploadedProofs.length !== 1 ? "s" : ""} attached</p>
                 )}
+              </div>
+
+              <div className="bg-surface rounded-xl border border-outline-variant p-5">
+                <div className="mb-3">
+                  <h3 className="text-base font-bold text-on-surface">Description</h3>
+                  <p className="text-xs text-secondary mt-0.5">Add notes or context for this case.</p>
+                </div>
+                <textarea
+                  rows={4}
+                  placeholder="Write a brief description..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                />
               </div>
             </div>
           )}
@@ -935,6 +951,27 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-outline-variant">
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Description</p>
+                </div>
+                <div className="px-4 py-3">
+                  {isEditingReview ? (
+                    <textarea
+                      value={formData.description}
+                      rows={3}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                    />
+                  ) : (
+                    <p className="text-sm text-on-surface font-medium whitespace-pre-wrap">
+                      {formData.description || <span className="text-secondary italic font-normal">Not set</span>}
+                    </p>
                   )}
                 </div>
               </div>
