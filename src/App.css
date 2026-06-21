@@ -120,6 +120,34 @@
     will-change: opacity, transform;
   }
 
+  .center-fill-option {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .center-fill-option::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: var(--fill-hover-bg, #eff7ff);
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 1s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .center-fill-option:not(.center-fill-option-selected):hover {
+    border-color: var(--fill-hover-border, #b8d8f5) !important;
+  }
+
+  .center-fill-option:not(.center-fill-option-selected):hover::before {
+    transform: scaleX(1);
+  }
+
+  .center-fill-option-selected::before {
+    display: none;
+  }
+
   .nav-active-indicator {
     position: absolute;
     top: 0;
@@ -233,6 +261,10 @@ body {
   .unsaved-confirm-panel-enter,
   .case-toast-x-enter {
     animation: none;
+  }
+
+  .center-fill-option::before {
+    transition: none;
   }
 
   .nav-active-indicator {

@@ -16,7 +16,24 @@ interface Case {
   description: string;
   sanction: string;
   progress: string;
+  proofs: string;
 }
+
+interface ProofItem {
+  name: string;
+  data: string;
+  created_at: string;
+}
+
+const parseProofs = (value: string): ProofItem[] => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as ProofItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 
 // ── Category colour mapping ──────────────────────────────────────────────────
 const CATEGORY_MAP: Record<string, { color: string; bg: string; border: string; label: string }> = {
@@ -108,6 +125,7 @@ export default function PendingCases() {
   const [resolvedIds, setResolvedIds]   = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery]   = useState("");
   const [dateSort, setDateSort]         = useState<"desc" | "asc">("desc");
+  const [selectedProofs, setSelectedProofs] = useState<ProofItem[]>([]);
 
   const selectedCase = cases.find((c) => c.id === selectedId) ?? null;
 
@@ -142,6 +160,14 @@ export default function PendingCases() {
     return () => window.removeEventListener("cases:changed", handler);
   }, [loadPendingCases]);
 
+  useEffect(() => {
+    if (!selectedCase) {
+      setSelectedProofs([]);
+      return;
+    }
+    setSelectedProofs(parseProofs(selectedCase.proofs));
+  }, [selectedCase?.id, selectedCase?.proofs]);
+
   const handleUpdateProgress = async (caseId: number, newProgress: string) => {
     const caseRecord = cases.find(c => c.id === caseId);
     if (!caseRecord) return;
@@ -160,7 +186,8 @@ export default function PendingCases() {
         case: caseRecord.case,
         description: caseRecord.description,
         sanction: caseRecord.sanction,
-        progress: newProgress 
+        progress: newProgress,
+        proofs: caseRecord.proofs
       });
       setResolvedIds((prev) => new Set(prev).add(caseId));
 
@@ -450,31 +477,25 @@ export default function PendingCases() {
                   </div>
                 </div>
 
-                {/* Proofs (if stored in localStorage) */}
-                {(() => {
-                  try {
-                    const stored = localStorage.getItem(`case_proofs_${selectedCase.id}`);
-                    if (!stored) return null;
-                    const proofs = JSON.parse(stored) as { name: string; data: string }[];
-                    if (!proofs.length) return null;
-                    return (
-                      <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden shrink-0">
-                        <div className="px-4 py-2.5 border-b border-outline-variant flex items-center justify-between">
-                          <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Attachments</p>
-                          <span className="text-[10px] text-secondary">{proofs.length} file{proofs.length !== 1 ? "s" : ""}</span>
+                {selectedProofs.length > 0 && (
+                  <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden shrink-0">
+                    <div className="px-4 py-2.5 border-b border-outline-variant flex items-center justify-between">
+                      <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Attachments</p>
+                      <span className="text-[10px] text-secondary">{selectedProofs.length} file{selectedProofs.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="px-4 py-3 grid grid-cols-3 gap-2">
+                      {selectedProofs.map((proof, index) => (
+                        <div
+                          key={`${proof.name}-${proof.created_at}-${index}`}
+                          className="aspect-video rounded-lg overflow-hidden border border-outline-variant cursor-pointer"
+                          onClick={() => window.open(proof.data, "_blank")}
+                        >
+                          <img src={proof.data} alt={proof.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
                         </div>
-                        <div className="px-4 py-3 grid grid-cols-3 gap-2">
-                          {proofs.map((p, i) => (
-                            <div key={i} className="aspect-video rounded-lg overflow-hidden border border-outline-variant cursor-pointer"
-                              onClick={() => window.open(p.data, "_blank")}>
-                              <img src={p.data} alt={p.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  } catch { return null; }
-                })()}
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* ── Resolve / Action bar ── */}

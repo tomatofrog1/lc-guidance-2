@@ -16,12 +16,24 @@ interface CaseRecord {
   description: string;
   sanction: string;
   progress: string;
+  proofs: string;
 }
 
 interface ProofItem {
   name: string;
   data: string;
+  created_at: string;
 }
+
+const parseProofs = (value: string): ProofItem[] => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as ProofItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 
 const formatDate = (dateString: string) => {
   if (!dateString) return "";
@@ -96,7 +108,6 @@ export default function CaseDetails() {
 
   // Proofs State
   const [uploadedProofs, setUploadedProofs] = useState<ProofItem[]>([]);
-  const [deletedDefaultIndices, setDeletedDefaultIndices] = useState<number[]>([]);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
 
   // Load Case Record
@@ -120,6 +131,33 @@ export default function CaseDetails() {
         sanction: data.sanction,
         progress: data.progress
       });
+      let proofs = parseProofs(data.proofs);
+      const stored = localStorage.getItem(`case_proofs_${id}`);
+      if (proofs.length === 0 && stored) {
+        proofs = (JSON.parse(stored) as { name: string; data: string }[]).map((proof) => ({
+          ...proof,
+          created_at: new Date().toISOString(),
+        }));
+        await invoke("update_case", {
+          id: data.id,
+          firstName: data.first_name,
+          lastName: data.last_name,
+          middleInitial: data.middle_initial,
+          level: data.level,
+          section: data.section,
+          date: data.date,
+          dateFiled: data.date_filed,
+          adviser: data.adviser,
+          case: data.case,
+          description: data.description,
+          sanction: data.sanction,
+          progress: data.progress,
+          proofs: JSON.stringify(proofs),
+        });
+        localStorage.removeItem(`case_proofs_${id}`);
+      }
+      setUploadedProofs(proofs);
+      setCaseRecord((prev) => prev ? { ...prev, proofs: JSON.stringify(proofs) } : prev);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -129,46 +167,31 @@ export default function CaseDetails() {
   }, [id]);
 
   useEffect(() => {
-    // Copy the generated images once on mount so they exist in assets
-    const copyProofs = async () => {
-      try {
-        await invoke("copy_generated_proof", {
-          srcPath: "/Users/harleyalcos/.gemini/antigravity-ide/brain/6f3b3a75-6058-4953-a688-01860eb0ab5e/document_proof_1_1781688583285.png",
-          destFilename: "document_proof_1.png"
-        });
-        await invoke("copy_generated_proof", {
-          srcPath: "/Users/harleyalcos/.gemini/antigravity-ide/brain/6f3b3a75-6058-4953-a688-01860eb0ab5e/document_proof_2_1781688609280.png",
-          destFilename: "document_proof_2.png"
-        });
-        await invoke("copy_generated_proof", {
-          srcPath: "/Users/harleyalcos/.gemini/antigravity-ide/brain/6f3b3a75-6058-4953-a688-01860eb0ab5e/document_proof_3_1781688712335.png",
-          destFilename: "document_proof_3.png"
-        });
-      } catch (e) {
-        console.error("Default proof copy error:", e);
-      }
-    };
-    copyProofs();
     loadCase();
   }, [loadCase]);
 
-  // Load Proofs from Local Storage
-  useEffect(() => {
-    if (!id) return;
-    const stored = localStorage.getItem(`case_proofs_${id}`);
-    if (stored) {
-      setUploadedProofs(JSON.parse(stored));
-    } else {
-      setUploadedProofs([]);
-    }
-
-    const deletedDefaults = localStorage.getItem(`case_proofs_deleted_defaults_${id}`);
-    if (deletedDefaults) {
-      setDeletedDefaultIndices(JSON.parse(deletedDefaults));
-    } else {
-      setDeletedDefaultIndices([]);
-    }
-  }, [id]);
+  const saveProofs = useCallback(async (proofs: ProofItem[]) => {
+    if (!caseRecord) return;
+    await invoke("update_case", {
+      id: caseRecord.id,
+      firstName: caseRecord.first_name,
+      lastName: caseRecord.last_name,
+      middleInitial: caseRecord.middle_initial,
+      level: caseRecord.level,
+      section: caseRecord.section,
+      date: caseRecord.date,
+      dateFiled: caseRecord.date_filed,
+      adviser: caseRecord.adviser,
+      case: caseRecord.case,
+      description: caseRecord.description,
+      sanction: caseRecord.sanction,
+      progress: caseRecord.progress,
+      proofs: JSON.stringify(proofs),
+    });
+    setUploadedProofs(proofs);
+    setCaseRecord({ ...caseRecord, proofs: JSON.stringify(proofs) });
+    window.dispatchEvent(new Event("cases:changed"));
+  }, [caseRecord]);
 
   // Handle Proof Upload
   const handleUploadProof = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,29 +199,30 @@ export default function CaseDetails() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const newProof = {
-        name: file.name,
-        data: reader.result as string
-      };
-      const updated = [...uploadedProofs, newProof];
-      setUploadedProofs(updated);
-      localStorage.setItem(`case_proofs_${id}`, JSON.stringify(updated));
+    reader.onloadend = async () => {
+      try {
+        await saveProofs([
+          ...uploadedProofs,
+          {
+          name: file.name,
+          data: reader.result as string,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      } catch (err) {
+        alert("Failed to upload proof: " + err);
+      }
     };
     reader.readAsDataURL(file);
   };
 
   // Handle Proof Delete
-  const handleDeleteProof = (e: React.MouseEvent, index: number, isDefault: boolean) => {
+  const handleDeleteProof = async (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
-    if (isDefault) {
-      const updatedDeletedDefaults = [...deletedDefaultIndices, index];
-      setDeletedDefaultIndices(updatedDeletedDefaults);
-      localStorage.setItem(`case_proofs_deleted_defaults_${id}`, JSON.stringify(updatedDeletedDefaults));
-    } else {
-      const updated = uploadedProofs.filter((_, i) => i !== index);
-      setUploadedProofs(updated);
-      localStorage.setItem(`case_proofs_${id}`, JSON.stringify(updated));
+    try {
+      await saveProofs(uploadedProofs.filter((_, i) => i !== index));
+    } catch (err) {
+      alert("Failed to delete proof: " + err);
     }
   };
 
@@ -221,7 +245,8 @@ export default function CaseDetails() {
         case: editForm.case.trim(),
         description: editForm.description.trim(),
         sanction: editForm.sanction.trim(),
-        progress: editForm.progress
+        progress: editForm.progress,
+        proofs: caseRecord.proofs
       });
       setIsEditing(false);
       window.dispatchEvent(new Event("cases:changed"));
@@ -231,18 +256,7 @@ export default function CaseDetails() {
     }
   };
 
-  // Build the list of proofs to display
-  const defaultProofs = [
-    { name: "Incident Report Form.png", data: "/src/assets/document_proof_1.png" },
-    { name: "Workspace Case Log.png", data: "/src/assets/document_proof_2.png" },
-    { name: "Abstract Warning Pattern.png", data: "/src/assets/document_proof_3.png" },
-  ];
-
-  const activeDefaultProofs = defaultProofs.filter((_, index) => !deletedDefaultIndices.includes(index));
-  const displayedProofs = [
-    ...activeDefaultProofs.map((p, idx) => ({ ...p, isDefault: true, index: idx })),
-    ...uploadedProofs.map((p, idx) => ({ ...p, isDefault: false, index: idx }))
-  ];
+  const displayedProofs = uploadedProofs;
 
   if (isLoading) {
     return (
@@ -574,9 +588,9 @@ export default function CaseDetails() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            {displayedProofs.map((proof, idx) => (
+            {displayedProofs.map((proof, index) => (
               <div
-                key={`${proof.isDefault ? "def" : "up"}-${proof.index}-${idx}`}
+                key={`${proof.name}-${proof.created_at}-${index}`}
                 className="group relative bg-surface border border-outline-variant rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer aspect-video flex items-center justify-center bg-surface-container"
                 onClick={() => setSelectedProofUrl(proof.data)}
               >
@@ -589,7 +603,7 @@ export default function CaseDetails() {
                   <span className="material-symbols-outlined text-white text-3xl">visibility</span>
                 </div>
                 <button
-                  onClick={(e) => handleDeleteProof(e, proof.index, proof.isDefault)}
+                  onClick={(e) => handleDeleteProof(e, index)}
                   className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all shadow-md"
                 >
                   <span className="material-symbols-outlined text-[16px]">delete</span>
