@@ -6,6 +6,7 @@ interface CaseRecord {
   id: number;
   first_name: string;
   last_name: string;
+  middle_initial: string;
   level: string;
   section: string;
   date: string;
@@ -80,6 +81,7 @@ export default function CaseDetails() {
   const [editForm, setEditForm] = useState({
     firstName: "",
     lastName: "",
+    middleInitial: "",
     level: "",
     section: "",
     adviser: "",
@@ -105,6 +107,7 @@ export default function CaseDetails() {
       setEditForm({
         firstName: data.first_name,
         lastName: data.last_name,
+        middleInitial: data.middle_initial,
         level: data.level,
         section: data.section,
         adviser: data.adviser,
@@ -206,6 +209,7 @@ export default function CaseDetails() {
         id: caseRecord.id,
         firstName: editForm.firstName.trim(),
         lastName: editForm.lastName.trim(),
+        middleInitial: editForm.middleInitial.trim(),
         level: editForm.level.trim(),
         section: editForm.section.trim(),
         date: editForm.date,
@@ -284,6 +288,7 @@ export default function CaseDetails() {
                   setEditForm({
                     firstName: caseRecord.first_name,
                     lastName: caseRecord.last_name,
+                    middleInitial: caseRecord.middle_initial,
                     level: caseRecord.level,
                     section: caseRecord.section,
                     adviser: caseRecord.adviser,
@@ -384,21 +389,31 @@ export default function CaseDetails() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      value={editForm.firstName}
-                      placeholder="First Name"
-                      onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-1/2"
-                    />
-                    <input
-                      type="text"
                       value={editForm.lastName}
                       placeholder="Last Name"
                       onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-1/2"
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary flex-1"
+                    />
+                    <input
+                      type="text"
+                      value={editForm.firstName}
+                      placeholder="First Name"
+                      onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary flex-1"
+                    />
+                    <input
+                      type="text"
+                      value={editForm.middleInitial}
+                      placeholder="M.I."
+                      maxLength={3}
+                      onChange={(e) => setEditForm({ ...editForm, middleInitial: e.target.value })}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-16"
                     />
                   </div>
                 ) : (
-                  <p className="text-[17px] font-semibold text-on-surface">{caseRecord.first_name} {caseRecord.last_name}</p>
+                  <p className="text-[17px] font-semibold text-on-surface">
+                    {caseRecord.last_name}, {caseRecord.first_name}{caseRecord.middle_initial ? ` ${caseRecord.middle_initial}.` : ""}
+                  </p>
                 )}
               </div>
 

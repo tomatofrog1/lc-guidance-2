@@ -6,6 +6,7 @@ interface CaseRecord {
   id: number;
   first_name: string;
   last_name: string;
+  middle_initial: string;
   level: string;
   section: string;
   date: string;
@@ -317,7 +318,9 @@ export default function SummaryReports() {
                 <div className="flex items-center gap-4 w-1/3">
                   <span className="inline-block px-2 py-1 bg-surface border border-outline-variant rounded-DEFAULT font-data-mono text-data-mono text-secondary">{formatCaseId(caseRecord.id)}</span>
                   <div>
-                    <p className="font-body-md text-body-md font-medium text-on-background m-0">{caseRecord.last_name}, {caseRecord.first_name}</p>
+                    <p className="font-body-md text-body-md font-medium text-on-background m-0">
+                      {caseRecord.last_name}, {caseRecord.first_name}{caseRecord.middle_initial ? ` ${caseRecord.middle_initial}.` : ""}
+                    </p>
                     <p className="font-label-caps text-label-caps text-secondary m-0 mt-0.5">{caseRecord.level} • {caseRecord.section}</p>
                   </div>
                 </div>
