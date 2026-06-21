@@ -94,7 +94,7 @@ export default function SignIn({ onSignIn }: SignInProps) {
             <div className="mt-8">
               <button 
                 type="submit"
-                className="rounded-md w-full bg-primary hover:bg-primary-container hover:text-on-primary-container text-on-primary font-body-md font-medium py-3 rounded-DEFAULT transition-colors"
+                className="rounded-md w-full bg-primary hover:bg-primary-container hover:text-on-primary-container text-on-primary font-body-md font-medium py-3 rounded-DEFAULT transition-colors duration-500"
               >
                 Sign In
               </button>

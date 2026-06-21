@@ -239,8 +239,8 @@ export default function SummaryReports() {
         <div className="data-card p-6 lg:col-span-2 flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-section-header text-section-header text-primary">Filing Volume Trend (Last 6 Months)</h3>
-            <button className="text-secondary hover:text-primary transition-colors">
-              <span className="material-symbols-outlined">more_horiz</span>
+            <button className="text-secondary hover:text-primary transition-colors duration-500">
+              <span className="material-symbols-outlined transition-colors duration-500">more_horiz</span>
             </button>
           </div>
           <div className="flex-grow relative w-full min-h-[300px] flex items-end pt-8">
@@ -272,8 +272,8 @@ export default function SummaryReports() {
         <div className="data-card p-6 flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-section-header text-section-header text-primary">Case Distribution</h3>
-            <button className="text-secondary hover:text-primary transition-colors">
-              <span className="material-symbols-outlined">more_horiz</span>
+            <button className="text-secondary hover:text-primary transition-colors duration-500">
+              <span className="material-symbols-outlined transition-colors duration-500">more_horiz</span>
             </button>
           </div>
           <div className="flex-grow flex flex-col justify-center items-center">
@@ -306,7 +306,7 @@ export default function SummaryReports() {
       <div className="data-card overflow-hidden flex flex-col">
         <div className="p-6 border-b border-surface-variant flex justify-between items-center bg-surface-container">
           <h3 className="font-section-header text-section-header text-primary">Recent Activity Log</h3>
-          <Link className="text-body-md font-body-md font-medium text-primary-container hover:text-primary transition-colors flex items-center gap-1" to="/catalog">
+          <Link className="text-body-md font-body-md font-medium text-primary-container hover:text-primary transition-colors duration-500 flex items-center gap-1" to="/catalog">
             View Full Catalog <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_forward</span>
           </Link>
         </div>

@@ -126,27 +126,27 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center h-[38px] rounded-full border text-sm transition-all duration-300 ease-in-out text-left select-none relative overflow-hidden w-[260px] pl-3.5 pr-8 ${
+        className={`flex items-center h-[38px] rounded-full border text-sm transition-all duration-500 ease-in-out text-left select-none relative overflow-hidden w-[260px] pl-3.5 pr-8 ${
           isOpen 
             ? "bg-surface-container border-primary ring-2 ring-primary/20 shadow-sm" 
             : "bg-surface border-outline-variant hover:bg-surface-container"
         }`}
       >
-        <div className="flex items-center gap-1.5 min-w-0 w-full">
-          <span className="material-symbols-outlined text-secondary shrink-0" style={{ fontSize: 18 }}>calendar_today</span>
+        <div className="flex items-center gap-1.5 min-w-0 w-full transition-colors duration-500">
+          <span className="material-symbols-outlined text-secondary shrink-0 transition-colors duration-500" style={{ fontSize: 18 }}>calendar_today</span>
           
-          <div className="flex items-center gap-1 min-w-0 transition-opacity duration-200 opacity-100 w-auto">
+          <div className="flex items-center gap-1 min-w-0 transition-opacity duration-500 opacity-100 w-auto">
             {prefix && (
-              <span className="text-secondary text-[11px] font-bold uppercase tracking-wider shrink-0">{prefix}</span>
+              <span className="text-secondary text-[11px] font-bold uppercase tracking-wider shrink-0 transition-colors duration-500">{prefix}</span>
             )}
-            <span className={`truncate text-sm ${value ? "font-bold text-on-surface" : "text-secondary font-normal"}`}>
+            <span className={`truncate text-sm ${value ? "font-bold text-on-surface" : "text-secondary font-normal"} transition-colors duration-500`}>
               {displayLabel()}
             </span>
           </div>
         </div>
 
         {isOpen && (
-          <span className="material-symbols-outlined text-secondary opacity-60 shrink-0 absolute right-2.5" style={{ fontSize: 16 }}>expand_more</span>
+          <span className="material-symbols-outlined text-secondary opacity-60 shrink-0 absolute right-2.5 transition-colors duration-500" style={{ fontSize: 16 }}>expand_more</span>
         )}
       </button>
 
@@ -156,10 +156,10 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
             e.stopPropagation();
             onChange("");
           }}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary hover:text-on-surface hover:bg-surface-container-high rounded-full w-5 h-5 flex items-center justify-center transition-colors z-10"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary hover:text-on-surface hover:bg-surface-container-high rounded-full w-5 h-5 flex items-center justify-center transition-colors duration-500 z-10"
           title="Clear date"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+          <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: '14px' }}>close</span>
         </button>
       )}
 
@@ -171,9 +171,9 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="w-7 h-7 rounded-lg border border-outline-variant flex items-center justify-center hover:bg-surface-container text-secondary hover:text-on-surface transition-colors"
+              className="w-7 h-7 rounded-lg border border-outline-variant flex items-center justify-center hover:bg-surface-container text-secondary hover:text-on-surface transition-colors duration-500"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_left</span>
+              <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 16 }}>chevron_left</span>
             </button>
             <div className="text-sm font-bold text-on-surface">
               {MONTHS[month]} {year}
@@ -181,9 +181,9 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
             <button
               type="button"
               onClick={handleNextMonth}
-              className="w-7 h-7 rounded-lg border border-outline-variant flex items-center justify-center hover:bg-surface-container text-secondary hover:text-on-surface transition-colors"
+              className="w-7 h-7 rounded-lg border border-outline-variant flex items-center justify-center hover:bg-surface-container text-secondary hover:text-on-surface transition-colors duration-500"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_right</span>
+              <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 16 }}>chevron_right</span>
             </button>
           </div>
 
@@ -209,7 +209,7 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
                   type="button"
                   disabled={isDisabled}
                   onClick={() => handleSelectDay(dateStr)}
-                  className={`aspect-square w-full rounded-lg text-xs font-medium flex items-center justify-center transition-all ${
+                  className={`aspect-square w-full rounded-lg text-xs font-medium flex items-center justify-center transition-all duration-500 ${
                     isDisabled
                       ? "text-secondary opacity-20 cursor-not-allowed"
                       : isSelected

@@ -292,17 +292,17 @@ export default function PendingCases() {
                 className="flex-1 bg-transparent text-xs text-on-surface placeholder:text-secondary focus:outline-none min-w-0"
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery("")} className="text-secondary hover:text-on-surface">
-                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+                <button onClick={() => setSearchQuery("")} className="text-secondary hover:text-on-surface transition-colors duration-500">
+                  <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>close</span>
                 </button>
               )}
             </div>
             <button
               onClick={() => setDateSort((prev) => (prev === "desc" ? "asc" : "desc"))}
               title={dateSort === "desc" ? "Sort Oldest First" : "Sort Newest First"}
-              className="w-8 h-8 rounded-lg border border-outline-variant flex items-center justify-center bg-surface-container-low hover:bg-surface-container transition-colors text-secondary hover:text-on-surface shrink-0"
+              className="w-8 h-8 rounded-lg border border-outline-variant flex items-center justify-center bg-surface-container-low hover:bg-surface-container transition-colors duration-500 text-secondary hover:text-on-surface shrink-0"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+              <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 18 }}>
                 {dateSort === "desc" ? "arrow_downward" : "arrow_upward"}
               </span>
             </button>
@@ -345,38 +345,38 @@ export default function PendingCases() {
                     <button
                       key={c.id}
                       onClick={() => { setSelectedId(c.id); setConfirmState("idle"); }}
-                      className={`w-full text-left rounded-xl px-3 py-3 transition-all border ${isExiting ? "case-row-exit" : ""} ${
+                      className={`w-full text-left rounded-xl px-3 py-3 transition-all duration-500 border ${isExiting ? "case-row-exit" : ""} ${
                         isSelected
                           ? "bg-[#0B1E43]/6 border-[#0B1E43]/20"
                           : "border-transparent hover:bg-surface-container"
                       }`}
                     >
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: itemCat.color }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-1.5">
-                            <p className="text-sm font-bold text-on-surface truncate flex-1">
+                      <div className="flex items-start gap-2.5 transition-colors duration-500">
+                        <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 transition-colors duration-500" style={{ background: itemCat.color }} />
+                        <div className="flex-1 min-w-0 transition-colors duration-500">
+                          <div className="flex items-start justify-between gap-1.5 transition-colors duration-500">
+                            <p className="text-sm font-bold text-on-surface truncate flex-1 transition-colors duration-500">
                               {c.last_name}, {c.first_name}{c.middle_initial ? ` ${c.middle_initial}.` : ""}
                             </p>
                             {indicator && (
                               <span 
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold border shrink-0 mt-0.5 leading-none"
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold border shrink-0 mt-0.5 leading-none transition-colors duration-500"
                                 style={{ backgroundColor: indicator.bg, color: indicator.color, borderColor: indicator.border }}
                               >
                                 {indicator.days === 0 ? "Today" : `${indicator.days}d`}
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-secondary truncate mt-0.5">{c.case}</p>
-                          <div className="flex items-center gap-1.5 mt-1.5">
-                            <span className="text-[10px] text-secondary font-medium">{c.level}</span>
+                          <p className="text-[11px] text-secondary truncate mt-0.5 transition-colors duration-500">{c.case}</p>
+                          <div className="flex items-center gap-1.5 mt-1.5 transition-colors duration-500">
+                            <span className="text-[10px] text-secondary font-medium transition-colors duration-500">{c.level}</span>
                             {c.section && (
                               <>
-                                <span className="text-[10px] text-secondary opacity-40">·</span>
-                                <span className="text-[10px] text-secondary font-medium">{c.section}</span>
+                                <span className="text-[10px] text-secondary opacity-40 transition-colors duration-500">·</span>
+                                <span className="text-[10px] text-secondary font-medium transition-colors duration-500">{c.section}</span>
                               </>
                             )}
-                            <span className="text-[10px] text-secondary opacity-40 ml-auto">{formatDate(c.date)}</span>
+                            <span className="text-[10px] text-secondary opacity-40 ml-auto transition-colors duration-500">{formatDate(c.date)}</span>
                           </div>
                         </div>
                       </div>
@@ -506,19 +506,19 @@ export default function PendingCases() {
                     <button
                       onClick={() => setConfirmState("reprimanding")}
                       disabled={resolvingId !== null}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border text-xs font-bold transition-all disabled:opacity-50 hover:bg-[#F7C1C1]/50"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border text-xs font-bold transition-all duration-500 disabled:opacity-50 hover:bg-[#F7C1C1]/50"
                       style={{ borderColor: "#F7C1C1", color: "#A32D2D", background: "#FCEBEB" }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>gavel</span>
+                      <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>gavel</span>
                       Mark reprimand
                     </button>
                     <button
                       onClick={() => setConfirmState("resolving")}
                       disabled={resolvingId !== null}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50 hover:bg-black"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-500 disabled:opacity-50 hover:bg-black"
                       style={{ background: "#0B1E43", color: "#fff" }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>
+                      <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>check_circle</span>
                       Resolve case
                     </button>
                   </div>
@@ -532,20 +532,20 @@ export default function PendingCases() {
                     </p>
                     <button
                       onClick={() => setConfirmState("idle")}
-                      className="text-xs font-bold text-secondary hover:text-on-surface px-3 py-1.5 rounded-lg hover:bg-surface transition-colors"
+                      className="text-xs font-bold text-secondary hover:text-on-surface px-3 py-1.5 rounded-lg hover:bg-surface transition-colors duration-500"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={() => handleUpdateProgress(selectedCase.id, "Resolved")}
                       disabled={resolvingId === selectedCase.id}
-                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-60 hover:bg-green-800"
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-500 disabled:opacity-60 hover:bg-green-800"
                       style={{ background: "#0F6E56", color: "#fff" }}
                     >
                       {resolvingId === selectedCase.id ? (
-                        <span className="material-symbols-outlined animate-spin" style={{ fontSize: 14 }}>progress_activity</span>
+                        <span className="material-symbols-outlined animate-spin transition-colors duration-500" style={{ fontSize: 14 }}>progress_activity</span>
                       ) : (
-                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check</span>
+                        <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>check</span>
                       )}
                       {resolvingId === selectedCase.id ? "Saving…" : "Confirm resolve"}
                     </button>
@@ -560,20 +560,20 @@ export default function PendingCases() {
                     </p>
                     <button
                       onClick={() => setConfirmState("idle")}
-                      className="text-xs font-bold text-secondary hover:text-on-surface px-3 py-1.5 rounded-lg hover:bg-surface transition-colors"
+                      className="text-xs font-bold text-secondary hover:text-on-surface px-3 py-1.5 rounded-lg hover:bg-surface transition-colors duration-500"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={() => handleUpdateProgress(selectedCase.id, "Reprimand")}
                       disabled={resolvingId === selectedCase.id}
-                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-60 hover:bg-red-800"
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-500 disabled:opacity-60 hover:bg-red-800"
                       style={{ background: "#A32D2D", color: "#fff" }}
                     >
                       {resolvingId === selectedCase.id ? (
-                        <span className="material-symbols-outlined animate-spin" style={{ fontSize: 14 }}>progress_activity</span>
+                        <span className="material-symbols-outlined animate-spin transition-colors duration-500" style={{ fontSize: 14 }}>progress_activity</span>
                       ) : (
-                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>gavel</span>
+                        <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>gavel</span>
                       )}
                       {resolvingId === selectedCase.id ? "Saving…" : "Confirm reprimand"}
                     </button>

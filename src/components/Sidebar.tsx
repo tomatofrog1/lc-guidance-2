@@ -24,7 +24,7 @@ export default function Sidebar() {
 
   const getLinkClasses = (index: number) => {
     const isActive = index === activeIndex;
-    const baseClasses = "relative z-10 flex h-12 items-center gap-3 px-4 rounded-DEFAULT transition-[color,transform] duration-200 cursor-pointer active:scale-95";
+    const baseClasses = "relative z-10 flex h-12 items-center gap-3 px-4 rounded-DEFAULT transition-[color,transform] duration-500 cursor-pointer active:scale-95";
 
     if (isActive) {
       return `${baseClasses} text-primary dark:text-on-primary-container font-semibold`;
@@ -42,7 +42,7 @@ export default function Sidebar() {
       <div className="px-5 mb-8 mt-4 flex items-center gap-4">
         <img src={lcLogo} alt="Laguna College Logo" className="w-16 h-16 object-contain shrink-0" />
         <div className="min-w-0">
-          <h1 className="font-display-title text-[24px] leading-[26px] text-primary dark:text-primary-fixed-dim font-bold">Laguna College</h1>
+          <h1 className="whitespace-nowrap text-[16px] leading-[18px] text-primary dark:text-primary-fixed-dim font-bold" style={{ fontFamily: "Georgia, serif" }}>Laguna College</h1>
           <p className="font-label-caps text-[11px] text-secondary dark:text-secondary-fixed-dim mt-1.5 tracking-wider leading-none">GUIDANCE OFFICE</p>
         </div>
       </div>
@@ -72,12 +72,12 @@ export default function Sidebar() {
           onClick={toggleDarkMode}
           className="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-500 cursor-pointer active:scale-95 w-full text-left"
         >
-          <span className="material-symbols-outlined">{isDark ? "light_mode" : "dark_mode"}</span>
-          <span className="font-body-md text-body-md font-medium">{isDark ? "Light Mode" : "Dark Mode"}</span>
+          <span className="material-symbols-outlined transition-colors duration-500">{isDark ? "light_mode" : "dark_mode"}</span>
+          <span className="font-body-md text-body-md font-medium transition-colors duration-500">{isDark ? "Light Mode" : "Dark Mode"}</span>
         </button>
         <button className="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-500 cursor-pointer active:scale-95 w-full text-left">
-          <span className="material-symbols-outlined">account_circle</span>
-          <span className="font-body-md text-body-md font-medium">Counselor Profile</span>
+          <span className="material-symbols-outlined transition-colors duration-500">account_circle</span>
+          <span className="font-body-md text-body-md font-medium transition-colors duration-500">Counselor Profile</span>
         </button>
       </div>
     </nav>
