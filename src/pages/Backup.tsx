@@ -158,10 +158,10 @@ export default function Backup() {
           <button
             onClick={handleBackupNow}
             disabled={isBackingUp}
-            className="group bg-[#0B1E43] dark:bg-primary hover:bg-[#001c59] dark:hover:bg-opacity-95 text-white font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 transition-all shadow-sm text-xs disabled:opacity-60 active:scale-95 animate-none"
+            className="group bg-[#0B1E43] dark:bg-primary hover:bg-[#001c59] dark:hover:bg-opacity-95 text-white font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 transition-all duration-500 shadow-sm text-xs disabled:opacity-60 active:scale-95 animate-none"
           >
             <span 
-              className={`material-symbols-outlined text-[16px] transition-[font-variation-settings] duration-300 ${
+              className={`material-symbols-outlined text-[16px] transition-[font-variation-settings] duration-500 ${
                 isBackingUp ? "animate-spin" : "group-hover:[font-variation-settings:'FILL'_1]"
               }`}
               style={{
@@ -242,7 +242,7 @@ export default function Backup() {
                       <button
                         onClick={() => setConfirmRestoreFilename(backup.filename)}
                         disabled={restoringFilename !== null || isBackingUp}
-                        className="border border-[#0B1E43] dark:border-[#7f9cf8] text-[#0B1E43] dark:text-[#7f9cf8] hover:bg-[#0B1E43]/5 dark:hover:bg-[#7f9cf8]/10 font-bold py-1 px-4 rounded transition-all text-xs active:scale-95 disabled:opacity-50"
+                        className="border border-[#0B1E43] dark:border-[#7f9cf8] text-[#0B1E43] dark:text-[#7f9cf8] hover:bg-[#0B1E43]/5 dark:hover:bg-[#7f9cf8]/10 font-bold py-1 px-4 rounded transition-all duration-500 text-xs active:scale-95 disabled:opacity-50"
                       >
                         {restoringFilename === backup.filename ? "Restoring..." : "Restore"}
                       </button>
@@ -274,12 +274,12 @@ export default function Backup() {
             <div>
               <button
                 onClick={handleToggleAuto}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-500 ease-in-out focus:outline-none ${
                   autoBackup ? "bg-primary" : "bg-[#c4c6d4]"
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-500 ease-in-out ${
                     autoBackup ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
@@ -354,13 +354,13 @@ export default function Backup() {
             <div className="flex gap-3 mt-2">
               <button
                 onClick={() => setConfirmRestoreFilename(null)}
-                className="flex-1 py-2 border border-outline-variant text-on-surface font-bold text-xs rounded-lg hover:bg-surface-container transition-all"
+                className="flex-1 py-2 border border-outline-variant text-on-surface font-bold text-xs rounded-lg hover:bg-surface-container transition-all duration-500"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleRestore(confirmRestoreFilename)}
-                className="flex-1 py-2 bg-red-600 text-white font-bold text-xs rounded-lg hover:bg-red-700 transition-all shadow-sm"
+                className="flex-1 py-2 bg-red-600 text-white font-bold text-xs rounded-lg hover:bg-red-700 transition-all duration-500 shadow-sm"
               >
                 Proceed & Restore
               </button>

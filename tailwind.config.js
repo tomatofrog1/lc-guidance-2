@@ -54,9 +54,9 @@ export default {
         "body-lg": ["Inter", "sans-serif"],
         "label-caps": ["Inter", "sans-serif"],
         "body-md": ["Inter", "sans-serif"],
-        "section-header": ["\"Source Serif 4\"", "serif"],
+        "section-header": ["Poppins", "sans-serif"],
         "data-mono": ["\"IBM Plex Mono\"", "monospace"],
-        "display-title": ["\"Source Serif 4\"", "serif"]
+        "display-title": ["Poppins", "sans-serif"]
       },
       fontSize: {
         "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],

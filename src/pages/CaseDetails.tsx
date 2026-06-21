@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
+import lcLogo from "../assets/lc-logo.png";
 
 interface CaseRecord {
   id: number;
@@ -24,6 +25,111 @@ interface ProofItem {
   data: string;
   created_at: string;
 }
+
+const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
+const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
+const TEXT_FIELD_LIMIT = 250;
+const CASE_TYPE_OPTIONS = [
+  "Poor academic performance",
+  "Learning difficulties",
+  "Study skills & habits",
+  "Absenteeism / tardiness",
+  "Course selection",
+  "Dropout prevention",
+  "Peer relationship issues",
+  "Family problems",
+  "Self-esteem & identity",
+  "Adjustment difficulties",
+  "Grief & loss",
+  "Gender & sexuality",
+  "Substance use",
+  "Social media issues",
+  "Physical fighting",
+  "Assault on staff",
+  "Weapons possession",
+  "Threats & intimidation",
+  "Self-harm & suicide risk",
+  "Sexual harassment",
+  "Anxiety & depression",
+  "Trauma & abuse",
+  "Crisis intervention",
+  "Defiance / non-compliance",
+  "Classroom disruption",
+  "Bullying",
+  "Truancy / skipping",
+  "Vandalism / property damage",
+  "Theft & dishonesty",
+  "Inappropriate language",
+  "Gang-related behaviour",
+  "Substance possession",
+];
+
+const PROGRESS_OPTIONS = [
+  {
+    value: "Pending",
+    label: "Pending",
+    desc: "Under review",
+    dot: "#854F0B",
+    bg: "#FAEEDA",
+    border: "#FAC775",
+    text: "#633806",
+  },
+  {
+    value: "Reprimand",
+    label: "Reprimand",
+    desc: "Action issued",
+    dot: "#A32D2D",
+    bg: "#FCEBEB",
+    border: "#F7C1C1",
+    text: "#791F1F",
+  },
+  {
+    value: "Resolved",
+    label: "Resolved",
+    desc: "Case closed",
+    dot: "#0F6E56",
+    bg: "#E1F5EE",
+    border: "#9FE1CB",
+    text: "#085041",
+  },
+];
+
+const getTodayDateString = () => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const collapseSpaces = (value: string) => value.replace(/\s+/g, " ").trim();
+
+const capitalizeWords = (value: string) =>
+  collapseSpaces(value)
+    .split(" ")
+    .map((word) => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : "")
+    .join(" ");
+
+const normalizeCaseType = (value: string) => capitalizeWords(value);
+
+const normalizeMiddleInitial = (value: string) => value.replace(/\s+/g, "").toUpperCase();
+
+const normalizeGradeLevel = (value: string) => {
+  const cleaned = collapseSpaces(value);
+  const match = cleaned.match(/^(?:grade\s*)?(\d{1,2})$/i);
+  if (match) {
+    const grade = Number(match[1]);
+    if (grade >= 7 && grade <= 12) return `Grade ${grade}`;
+  }
+  return capitalizeWords(cleaned);
+};
+
+const normalizeSection = (value: string) => {
+  const cleaned = collapseSpaces(value);
+  const upper = cleaned.toUpperCase();
+  if (SECTION_OPTIONS.includes(upper)) return upper;
+  return capitalizeWords(cleaned);
+};
 
 const parseProofs = (value: string): ProofItem[] => {
   if (!value) return [];
@@ -88,6 +194,8 @@ export default function CaseDetails() {
   const [caseRecord, setCaseRecord] = useState<CaseRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCancelConfirmClosing, setIsCancelConfirmClosing] = useState(false);
 
   // Editing State
   const [isEditing, setIsEditing] = useState(false);
@@ -110,6 +218,35 @@ export default function CaseDetails() {
   const [uploadedProofs, setUploadedProofs] = useState<ProofItem[]>([]);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
 
+  const resetEditForm = useCallback((record: CaseRecord) => {
+    setEditForm({
+      firstName: record.first_name,
+      lastName: record.last_name,
+      middleInitial: record.middle_initial,
+      level: record.level,
+      section: record.section,
+      adviser: record.adviser,
+      date: record.date,
+      date_filed: record.date_filed,
+      case: record.case,
+      description: record.description,
+      sanction: record.sanction,
+      progress: record.progress
+    });
+  }, []);
+
+  const closeCancelConfirm = (discardChanges = false) => {
+    setIsCancelConfirmClosing(true);
+    window.setTimeout(() => {
+      if (discardChanges && caseRecord) {
+        resetEditForm(caseRecord);
+        setIsEditing(false);
+      }
+      setShowCancelConfirm(false);
+      setIsCancelConfirmClosing(false);
+    }, 200);
+  };
+
   // Load Case Record
   const loadCase = useCallback(async () => {
     if (!id) return;
@@ -117,20 +254,7 @@ export default function CaseDetails() {
       setIsLoading(true);
       const data = await invoke<CaseRecord>("get_case", { id: Number(id) });
       setCaseRecord(data);
-      setEditForm({
-        firstName: data.first_name,
-        lastName: data.last_name,
-        middleInitial: data.middle_initial,
-        level: data.level,
-        section: data.section,
-        adviser: data.adviser,
-        date: data.date,
-        date_filed: data.date_filed,
-        case: data.case,
-        description: data.description,
-        sanction: data.sanction,
-        progress: data.progress
-      });
+      resetEditForm(data);
       let proofs = parseProofs(data.proofs);
       const stored = localStorage.getItem(`case_proofs_${id}`);
       if (proofs.length === 0 && stored) {
@@ -164,7 +288,7 @@ export default function CaseDetails() {
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [id, resetEditForm]);
 
   useEffect(() => {
     loadCase();
@@ -231,20 +355,21 @@ export default function CaseDetails() {
   // Handle Save Edits
   const handleSaveEdits = async () => {
     if (!caseRecord) return;
+    const date = editForm.date > getTodayDateString() ? getTodayDateString() : editForm.date;
     try {
       await invoke("update_case", {
         id: caseRecord.id,
-        firstName: editForm.firstName.trim(),
-        lastName: editForm.lastName.trim(),
-        middleInitial: editForm.middleInitial.trim(),
-        level: editForm.level.trim(),
-        section: editForm.section.trim(),
-        date: editForm.date,
+        firstName: capitalizeWords(editForm.firstName),
+        lastName: capitalizeWords(editForm.lastName),
+        middleInitial: normalizeMiddleInitial(editForm.middleInitial),
+        level: normalizeGradeLevel(editForm.level),
+        section: normalizeSection(editForm.section),
+        date,
         dateFiled: editForm.date_filed,
-        adviser: editForm.adviser.trim(),
-        case: editForm.case.trim(),
-        description: editForm.description.trim(),
-        sanction: editForm.sanction.trim(),
+        adviser: capitalizeWords(editForm.adviser),
+        case: normalizeCaseType(editForm.case),
+        description: editForm.description.trim().slice(0, TEXT_FIELD_LIMIT),
+        sanction: editForm.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
         progress: editForm.progress,
         proofs: caseRecord.proofs
       });
@@ -275,7 +400,7 @@ export default function CaseDetails() {
         <p className="text-sm text-secondary mb-6">{error || "The requested case could not be retrieved."}</p>
         <button
           onClick={() => navigate("/catalog")}
-          className="px-6 py-2 bg-[#0F172A] hover:bg-black text-white text-sm font-bold rounded-lg transition-all"
+          className="px-6 py-2 bg-[#0F172A] hover:bg-black text-white text-sm font-bold rounded-lg transition-all duration-500"
         >
           Return to Catalog
         </button>
@@ -285,6 +410,22 @@ export default function CaseDetails() {
 
   return (
     <>
+      <datalist id="case-details-grade-level-options">
+        {GRADE_LEVEL_OPTIONS.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+      <datalist id="case-details-section-options">
+        {SECTION_OPTIONS.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+      <datalist id="case-details-case-type-options">
+        {CASE_TYPE_OPTIONS.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+
       {/* Sub-header / Actions matching the design layout */}
       <div className="flex justify-between items-center mb-4 mt-2">
         <span className="font-data-mono text-xs font-semibold bg-surface border border-outline-variant px-3 py-1.5 rounded-lg text-secondary">
@@ -295,32 +436,19 @@ export default function CaseDetails() {
             <>
               <button
                 onClick={handleSaveEdits}
-                className="bg-[#15803d] text-white font-bold py-2 px-5 rounded-lg flex items-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm text-xs"
+                className="bg-[#15803d] text-white font-bold py-2 px-5 rounded-lg flex items-center gap-1.5 hover:bg-green-700 transition-colors duration-500 shadow-sm text-xs"
               >
-                <span className="material-symbols-outlined text-sm">save</span>
+                <span className="material-symbols-outlined text-sm transition-colors duration-500">save</span>
                 <span>Save</span>
               </button>
               <button
                 onClick={() => {
-                  setIsEditing(false);
-                  setEditForm({
-                    firstName: caseRecord.first_name,
-                    lastName: caseRecord.last_name,
-                    middleInitial: caseRecord.middle_initial,
-                    level: caseRecord.level,
-                    section: caseRecord.section,
-                    adviser: caseRecord.adviser,
-                    date: caseRecord.date,
-                    date_filed: caseRecord.date_filed,
-                    case: caseRecord.case,
-                    description: caseRecord.description,
-                    sanction: caseRecord.sanction,
-                    progress: caseRecord.progress
-                  });
+                  setIsCancelConfirmClosing(false);
+                  setShowCancelConfirm(true);
                 }}
-                className="border border-outline-variant bg-surface text-on-surface font-bold py-2 px-5 rounded-lg flex items-center gap-1.5 hover:bg-surface-container transition-colors text-xs"
+                className="border border-outline-variant bg-surface text-on-surface font-bold py-2 px-5 rounded-lg flex items-center gap-1.5 hover:bg-surface-container transition-colors duration-500 text-xs"
               >
-                <span className="material-symbols-outlined text-sm">close</span>
+                <span className="material-symbols-outlined text-sm transition-colors duration-500">close</span>
                 <span>Cancel</span>
               </button>
             </>
@@ -328,9 +456,9 @@ export default function CaseDetails() {
             <>
               <button
                 onClick={() => setIsEditing(true)}
-                className="border border-outline-variant bg-surface text-on-surface font-bold py-2 px-5 rounded flex items-center gap-1.5 hover:bg-surface-container transition-colors text-xs"
+                className="border border-outline-variant bg-surface text-on-surface font-bold py-2 px-5 rounded flex items-center gap-1.5 hover:bg-surface-container transition-colors duration-500 text-xs"
               >
-                <span className="material-symbols-outlined text-sm">edit</span>
+                <span className="material-symbols-outlined text-sm transition-colors duration-500">edit</span>
                 <span>Edit</span>
               </button>
             </>
@@ -343,12 +471,10 @@ export default function CaseDetails() {
         {/* Banner with Laguna College Header */}
         <div className="px-8 py-6 border-b border-outline-variant flex justify-between items-center bg-white dark:bg-surface shrink-0">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full border border-outline-variant flex items-center justify-center bg-surface-container-low shrink-0">
-              <span className="material-symbols-outlined text-primary text-3xl">school</span>
-            </div>
-            <div>
-              <h2 className="text-3xl font-extrabold text-[#0B1E43] dark:text-on-surface leading-none tracking-wide" style={{ fontFamily: 'Georgia, serif' }}>Laguna College</h2>
-              <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mt-2">Official Guidance Record</p>
+            <img src={lcLogo} alt="Laguna College Logo" className="w-16 h-16 object-contain shrink-0" />
+            <div className="min-w-0">
+              <h2 className="whitespace-nowrap text-[18px] leading-[20px] text-primary dark:text-primary-fixed-dim font-bold" style={{ fontFamily: "Georgia, serif" }}>Laguna College</h2>
+              <p className="font-label-caps text-[11px] text-secondary dark:text-secondary-fixed-dim uppercase tracking-wider leading-none mt-1.5">GUIDANCE OFFICE</p>
             </div>
           </div>
           <div className="pr-4">
@@ -356,22 +482,26 @@ export default function CaseDetails() {
               <div className="flex flex-col items-end gap-1.5">
                 <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mr-2">Progress</label>
                 <div className="flex gap-2">
-                  {["Resolved", "Pending", "Reprimand"].map((status) => (
+                  {PROGRESS_OPTIONS.map((opt) => (
                     <button
-                      key={status}
+                      key={opt.value}
                       type="button"
-                      onClick={() => setEditForm({ ...editForm, progress: status })}
-                      className={`px-3 py-1.5 rounded font-bold text-xs border transition-all ${
-                        editForm.progress.toLowerCase() === status.toLowerCase()
-                          ? status.toLowerCase() === "resolved"
-                            ? "border-[#15803d] bg-[#15803d]/10 text-[#15803d]"
-                            : status.toLowerCase() === "reprimand"
-                            ? "border-[#dc2626] bg-[#dc2626]/10 text-[#dc2626]"
-                            : "border-[#d97706] bg-[#d97706]/10 text-[#d97706]"
-                          : "border-outline-variant bg-white dark:bg-surface text-secondary hover:bg-surface-container"
+                      onClick={() => setEditForm({ ...editForm, progress: opt.value })}
+                      className={`center-fill-option px-3 py-1.5 rounded font-bold text-xs border transition-all duration-500 text-left ${
+                        editForm.progress.toLowerCase() === opt.value.toLowerCase() ? "center-fill-option-selected" : ""
                       }`}
+                      style={editForm.progress.toLowerCase() === opt.value.toLowerCase()
+                        ? { background: opt.bg, borderColor: opt.dot, color: opt.text }
+                        : {
+                          background: "transparent",
+                          borderColor: "var(--color-outline-variant)",
+                          color: "var(--color-secondary)",
+                          ["--fill-hover-bg" as string]: opt.bg,
+                          ["--fill-hover-border" as string]: opt.border,
+                        }
+                      }
                     >
-                      {status}
+                      <span className="relative z-10 transition-colors duration-500">{opt.label}</span>
                     </button>
                   ))}
                 </div>
@@ -393,17 +523,16 @@ export default function CaseDetails() {
         </div>
 
         {/* Content Body Grid */}
-        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
+        <div className="p-8 space-y-8">
           {/* Left Column — Student Information */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="flex items-center gap-4 mb-4">
-              <span className="text-[10px] font-bold text-secondary uppercase tracking-widest whitespace-nowrap">Student Information</span>
-              <div className="h-[1px] bg-outline-variant/60 flex-grow" />
+              <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Student Information</span>
             </div>
 
-            <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5">
               <div>
-                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
+                <label className="block text-base font-medium text-secondary uppercase tracking-wider mb-1">Full Name</label>
                 {isEditing ? (
                   <div className="flex gap-2">
                     <input
@@ -411,14 +540,16 @@ export default function CaseDetails() {
                       value={editForm.lastName}
                       placeholder="Last Name"
                       onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary flex-1"
+                      onBlur={() => setEditForm((p) => ({ ...p, lastName: capitalizeWords(p.lastName) }))}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                     />
                     <input
                       type="text"
                       value={editForm.firstName}
                       placeholder="First Name"
                       onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary flex-1"
+                      onBlur={() => setEditForm((p) => ({ ...p, firstName: capitalizeWords(p.firstName) }))}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                     />
                     <input
                       type="text"
@@ -426,127 +557,152 @@ export default function CaseDetails() {
                       placeholder="M.I."
                       maxLength={3}
                       onChange={(e) => setEditForm({ ...editForm, middleInitial: e.target.value })}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-16"
+                      onBlur={() => setEditForm((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }))}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-16"
                     />
                   </div>
                 ) : (
-                  <p className="text-[17px] font-semibold text-on-surface">
+                  <p className="text-sm font-medium text-on-surface">
                     {caseRecord.last_name}, {caseRecord.first_name}{caseRecord.middle_initial ? ` ${caseRecord.middle_initial}.` : ""}
                   </p>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <>
                 <div>
-                  <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>
+                  <label className="block text-base font-medium text-secondary uppercase tracking-wider mb-1">Level</label>
                   {isEditing ? (
                     <input
                       type="text"
                       value={editForm.level}
+                      list="case-details-grade-level-options"
                       onChange={(e) => setEditForm({ ...editForm, level: e.target.value })}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                      onBlur={() => setEditForm((p) => ({ ...p, level: normalizeGradeLevel(p.level) }))}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                     />
                   ) : (
-                    <p className="text-sm text-on-surface">{caseRecord.level || "—"}</p>
+                    <p className="text-sm font-medium text-on-surface">{caseRecord.level || "—"}</p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Section</label>
+                  <label className="block text-base font-medium text-secondary uppercase tracking-wider mb-1">Section</label>
                   {isEditing ? (
                     <input
                       type="text"
                       value={editForm.section}
+                      list="case-details-section-options"
                       onChange={(e) => setEditForm({ ...editForm, section: e.target.value })}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                      onBlur={() => setEditForm((p) => ({ ...p, section: normalizeSection(p.section) }))}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                     />
                   ) : (
-                    <p className="text-sm text-on-surface">{caseRecord.section || "—"}</p>
+                    <p className="text-sm font-medium text-on-surface">{caseRecord.section || "—"}</p>
                   )}
                 </div>
-              </div>
+              </>
 
               <div>
-                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Adviser</label>
+                <label className="block text-base font-medium text-secondary uppercase tracking-wider mb-1">Adviser</label>
                 {isEditing ? (
                   <input
                     type="text"
                     value={editForm.adviser}
                     onChange={(e) => setEditForm({ ...editForm, adviser: e.target.value })}
-                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                    onBlur={() => setEditForm((p) => ({ ...p, adviser: capitalizeWords(p.adviser) }))}
+                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                   />
                 ) : (
-                  <p className="text-sm text-on-surface">{caseRecord.adviser || "—"}</p>
+                  <p className="text-sm font-medium text-on-surface">{caseRecord.adviser || "—"}</p>
                 )}
               </div>
             </div>
           </div>
 
           {/* Right Column — Case Information */}
-          <div className="space-y-6">
+          <div className="space-y-6 border-t border-outline-variant/70 pt-8">
             <div className="flex items-center gap-4 mb-4">
-              <span className="text-[10px] font-bold text-secondary uppercase tracking-widest whitespace-nowrap">Case Information</span>
-              <div className="h-[1px] bg-outline-variant/60 flex-grow" />
+              <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Case Information</span>
             </div>
 
-            <div className="space-y-5">
-              <div>
-                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Date Filed</label>
-                <p className="text-sm text-on-surface mb-4">{formatDateTime(caseRecord.date_filed)}</p>
-                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Date of Incident</label>
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-x-8 gap-y-6">
+              <div className="md:col-span-2">
+                <label className="block text-base font-medium text-secondary uppercase tracking-wider mb-1">Date Filed</label>
+                <p className="text-sm font-medium text-on-surface">{formatDateTime(caseRecord.date_filed)}</p>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-base font-medium text-secondary uppercase tracking-wider mb-1">Date of Incident</label>
                 {isEditing ? (
                   <input
                     type="date"
                     value={editForm.date}
-                    onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                    max={getTodayDateString()}
+                    onChange={(e) => {
+                      const nextDate = e.target.value;
+                      setEditForm({ ...editForm, date: nextDate > getTodayDateString() ? getTodayDateString() : nextDate });
+                    }}
+                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                   />
                 ) : (
-                  <p className="text-sm text-on-surface">{formatDate(caseRecord.date)}</p>
+                  <p className="text-sm font-medium text-on-surface">{formatDate(caseRecord.date)}</p>
                 )}
               </div>
 
-              <div>
-                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Case Type</label>
+              <div className="md:col-span-2">
+                <label className="block text-base font-medium text-secondary uppercase tracking-wider mb-1">Case Type</label>
                 {isEditing ? (
-                  <textarea
+                  <input
+                    type="text"
                     value={editForm.case}
+                    list="case-details-case-type-options"
                     onChange={(e) => setEditForm({ ...editForm, case: e.target.value })}
-                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full h-24 resize-none"
+                    onBlur={() => setEditForm((p) => ({ ...p, case: normalizeCaseType(p.case) }))}
+                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                   />
                 ) : (
-                  <p className="text-sm text-on-surface leading-relaxed text-justify">{caseRecord.case}</p>
+                  <p className="text-sm font-medium text-on-surface leading-relaxed">{caseRecord.case}</p>
                 )}
               </div>
 
-              <div>
-                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Description</label>
+              <div className="md:col-span-3">
+                <label className="block text-base font-medium text-secondary uppercase tracking-wider mb-1">Description</label>
                 {isEditing ? (
-                  <textarea
-                    value={editForm.description}
-                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full h-24 resize-none"
-                  />
+                  <>
+                    <textarea
+                      value={editForm.description}
+                      maxLength={TEXT_FIELD_LIMIT}
+                      onChange={(e) => setEditForm({ ...editForm, description: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full h-28 resize-none"
+                    />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {editForm.description.length}/{TEXT_FIELD_LIMIT}
+                    </p>
+                  </>
                 ) : (
-                  <p className="text-sm text-on-surface leading-relaxed text-justify whitespace-pre-wrap">
+                  <p className="text-sm font-medium text-on-surface leading-relaxed text-justify whitespace-pre-wrap">
                     {caseRecord.description || "No description provided."}
                   </p>
                 )}
               </div>
 
-              <div>
-                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Sanction / Action Plan</label>
+              <div className="md:col-span-3">
+                <label className="block text-base font-medium text-secondary uppercase tracking-wider mb-1">Sanction/Action Taken</label>
                 {isEditing ? (
-                  <textarea
-                    value={editForm.sanction}
-                    onChange={(e) => setEditForm({ ...editForm, sanction: e.target.value })}
-                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full h-24 resize-none"
-                  />
-                ) : (
-                  <div className="border-l-[3px] border-outline-variant/80 pl-4 py-0.5 mt-2">
-                    <p className="text-sm italic text-secondary leading-relaxed text-justify">
-                      {caseRecord.sanction || "No action plan logged yet."}
+                  <>
+                    <textarea
+                      value={editForm.sanction}
+                      maxLength={TEXT_FIELD_LIMIT}
+                      onChange={(e) => setEditForm({ ...editForm, sanction: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full h-28 resize-none"
+                    />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {editForm.sanction.length}/{TEXT_FIELD_LIMIT}
                     </p>
-                  </div>
+                  </>
+                ) : (
+                  <p className="text-sm font-medium text-on-surface leading-relaxed text-justify whitespace-pre-wrap">
+                    {caseRecord.sanction || "No action taken logged yet."}
+                  </p>
                 )}
               </div>
             </div>
@@ -569,7 +725,7 @@ export default function CaseDetails() {
             <span>Documentation & Proofs</span>
           </h3>
           <div>
-            <label className="bg-[#0B1E43] dark:bg-primary text-white hover:bg-opacity-95 dark:hover:bg-opacity-80 font-bold text-xs py-2 px-4 rounded transition-all cursor-pointer flex items-center gap-1.5 shadow-sm">
+            <label className="bg-[#0B1E43] dark:bg-primary text-white hover:bg-opacity-95 dark:hover:bg-opacity-80 font-bold text-xs py-2 px-4 rounded transition-all duration-500 cursor-pointer flex items-center gap-1.5 shadow-sm">
               <span className="material-symbols-outlined text-[16px]">upload_file</span>
               <span>Upload Proof</span>
               <input
@@ -604,9 +760,9 @@ export default function CaseDetails() {
                 </div>
                 <button
                   onClick={(e) => handleDeleteProof(e, index)}
-                  className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all shadow-md"
+                  className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all duration-500 shadow-md"
                 >
-                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                  <span className="material-symbols-outlined text-[16px] transition-colors duration-500">delete</span>
                 </button>
                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2.5 text-white text-xs truncate font-medium">
                   {proof.name}
@@ -627,15 +783,47 @@ export default function CaseDetails() {
           <div className="relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface rounded-xl shadow-2xl flex flex-col">
             <button
               onClick={() => setSelectedProofUrl(null)}
-              className="absolute top-3 right-3 bg-black/60 text-white hover:bg-black rounded-full p-2 transition-all"
+              className="absolute top-3 right-3 bg-black/60 text-white hover:bg-black rounded-full p-2 transition-all duration-500"
             >
-              <span className="material-symbols-outlined text-[20px]">close</span>
+              <span className="material-symbols-outlined text-[20px] transition-colors duration-500">close</span>
             </button>
             <img
               src={selectedProofUrl}
               alt="Full size proof documentation"
               className="max-w-full max-h-[80vh] object-contain rounded-xl"
             />
+          </div>
+        </div>
+      )}
+
+      {showCancelConfirm && (
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm ${
+          isCancelConfirmClosing ? "unsaved-confirm-backdrop-exit" : "unsaved-confirm-backdrop-enter"
+        }`}>
+          <div className={`bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
+            isCancelConfirmClosing ? "unsaved-confirm-panel-exit" : "unsaved-confirm-panel-enter"
+          }`}>
+            <span className="material-symbols-outlined text-5xl mx-auto" style={{ color: "#d97706" }}>warning</span>
+            <div>
+              <h3 className="text-base font-bold text-on-surface">Discard changes?</h3>
+              <p className="text-xs text-secondary mt-1.5 leading-relaxed">
+                Your edits on this case will be lost if you continue.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => closeCancelConfirm(true)}
+                className="w-full py-2.5 bg-[#0B1E43] text-white font-bold text-xs rounded-xl hover:bg-[#0F2451] transition-colors duration-500"
+              >
+                Discard changes
+              </button>
+              <button
+                onClick={() => closeCancelConfirm(false)}
+                className="w-full py-2.5 border border-outline-variant text-on-surface font-bold text-xs rounded-xl hover:bg-surface-container transition-colors duration-500"
+              >
+                Keep editing
+              </button>
+            </div>
           </div>
         </div>
       )}
