@@ -20,6 +20,7 @@ pub struct CaseRecord {
     pub description: String,
     pub sanction: String,
     pub progress: String,
+    pub proofs: String,
 }
 
 fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
@@ -37,6 +38,7 @@ fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
         description: row.get("description")?,
         sanction: row.get("sanction")?,
         progress: row.get("progress")?,
+        proofs: row.get("proofs")?,
     })
 }
 
@@ -50,7 +52,7 @@ pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
     let mut statement = connection
         .prepare(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs
 FROM cases
 ORDER BY id DESC
 "#,
@@ -81,6 +83,7 @@ pub fn add_case(
     description: String,
     sanction: String,
     progress: String,
+    proofs: String,
 ) -> Result<i64, String> {
     let connection = state.connection.lock().map_err(db_error)?;
 
@@ -88,12 +91,12 @@ pub fn add_case(
         .execute(
             r#"
 INSERT INTO cases (
-  first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+  first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
 "#,
             params![
                 first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, description,
-                sanction, progress
+                sanction, progress, proofs
             ],
         )
         .map_err(db_error)?;
@@ -117,6 +120,7 @@ pub fn update_case(
     description: String,
     sanction: String,
     progress: String,
+    proofs: String,
 ) -> Result<(), String> {
     let connection = state.connection.lock().map_err(db_error)?;
 
@@ -135,12 +139,13 @@ SET first_name = ?1,
     "case" = ?9,
     description = ?10,
     sanction = ?11,
-    progress = ?12
-WHERE id = ?13
+    progress = ?12,
+    proofs = ?13
+WHERE id = ?14
 "#,
             params![
                 first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, description,
-                sanction, progress, id
+                sanction, progress, proofs, id
             ],
         )
         .map_err(db_error)?;
@@ -172,7 +177,7 @@ pub fn get_case(state: State<'_, DbState>, id: i64) -> Result<CaseRecord, String
     let case = connection
         .query_row(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs
 FROM cases
 WHERE id = ?1
 "#,

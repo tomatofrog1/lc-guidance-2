@@ -4,11 +4,13 @@ import { invoke } from "@tauri-apps/api/core";
 interface ProofItem {
   name: string;
   data: string;
+  created_at?: string;
 }
 
 interface FileNewCaseModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCaseFiled?: () => void;
 }
 
 // ── Case category data ──────────────────────────────────────────────────────
@@ -115,11 +117,19 @@ const PROGRESS_OPTIONS = [
 
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMMS", "GAS"];
+const OTHER_CASE_CATEGORY = {
+  id: "other",
+  label: "Other",
+  color: "#4D5A66",
+  bg: "#EDF3F8",
+  border: "#C8D7E4",
+};
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 function getCategoryForCase(caseStr: string) {
+  const normalizedCase = collapseSpaces(caseStr).toLowerCase();
   for (const cat of CASE_CATEGORIES) {
-    if (cat.cases.includes(caseStr)) return cat;
+    if (cat.cases.some((caseName) => caseName.toLowerCase() === normalizedCase)) return cat;
   }
   return null;
 }
@@ -156,6 +166,8 @@ const capitalizeWords = (value: string) =>
     .map((word) => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : "")
     .join(" ");
 
+const normalizeCaseType = (value: string) => capitalizeWords(value);
+
 const normalizeMiddleInitial = (value: string) => value.replace(/\s+/g, "").toUpperCase();
 
 const normalizeGradeLevel = (value: string) => {
@@ -186,7 +198,7 @@ const normalizeStudentInfo = (data: ReturnType<typeof emptyFormData>) => ({
 });
 
 // ── Component ───────────────────────────────────────────────────────────────
-export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalProps) {
+export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileNewCaseModalProps) {
   const [isVisible, setIsVisible] = useState(isOpen);
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditingReview, setIsEditingReview] = useState(false);
@@ -294,9 +306,18 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
   const handleNext = () => {
     setIsEditingReview(false);
     setSubmitError("");
-    if (currentStep === 1 && !formData.case.trim()) {
-      showToast("Please fill out the required case type field.");
-      return;
+    if (currentStep === 1) {
+      const normalizedCase = normalizeCaseType(formData.case);
+      const matchedCategory = getCategoryForCase(normalizedCase);
+      setFormData((p) => ({
+        ...p,
+        case: normalizedCase,
+        caseCategory: matchedCategory?.id ?? (normalizedCase ? "other" : ""),
+      }));
+      if (!normalizedCase.trim()) {
+        showToast("Please fill out the required case type field.");
+        return;
+      }
     }
     if (currentStep === 2) {
       const normalized = normalizeStudentInfo(formData);
@@ -341,6 +362,10 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
   const handleFileCase = async () => {
     setSubmitError("");
     const normalized = normalizeStudentInfo(formData);
+    const normalizedCase = normalizeCaseType(normalized.case);
+    const matchedCategory = getCategoryForCase(normalizedCase);
+    normalized.case = normalizedCase;
+    normalized.caseCategory = matchedCategory?.id ?? (normalizedCase ? "other" : "");
     setFormData(normalized);
     if (!normalized.case.trim()) {
       showToast("Please fill out the required case type field.");
@@ -368,7 +393,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
     }
     setIsSubmitting(true);
     try {
-      const newCaseId = await invoke<number>("add_case", {
+      await invoke<number>("add_case", {
         firstName: normalized.firstName,
         lastName: normalized.lastName,
         middleInitial: normalized.middleInitial,
@@ -381,11 +406,11 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
         description: normalized.description.trim(),
         sanction: normalized.sanction.trim(),
         progress: normalized.progress,
+        proofs: JSON.stringify(normalized.uploadedProofs.map((proof) => ({
+          ...proof,
+          created_at: proof.created_at ?? new Date().toISOString(),
+        }))),
       });
-
-      if (formData.uploadedProofs.length > 0) {
-        localStorage.setItem(`case_proofs_${newCaseId}`, JSON.stringify(formData.uploadedProofs));
-      }
 
       localStorage.removeItem("new_case_draft");
 
@@ -396,6 +421,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
       }
 
       window.dispatchEvent(new Event("cases:changed"));
+      onCaseFiled?.();
       onClose();
       resetForm();
     } catch (err) {
@@ -409,6 +435,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
 
   const STEPS = ["Case type", "Student info", "Proofs and Description", "Review"];
   const activeCat = getCategoryForCase(formData.case);
+  const displayCat = formData.case.trim() ? activeCat ?? OTHER_CASE_CATEGORY : null;
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ease-out ${isOpen ? "opacity-100 new-case-modal-backdrop-enter" : "opacity-0 pointer-events-none"}`}>
@@ -489,13 +516,22 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                   placeholder="Select a case type below, or type a custom description."
                   value={formData.case}
                   onChange={(e) => setFormData((p) => ({ ...p, case: e.target.value, caseCategory: "custom" }))}
+                  onBlur={() => setFormData((p) => {
+                    const normalizedCase = normalizeCaseType(p.case);
+                    const matchedCategory = getCategoryForCase(normalizedCase);
+                    return {
+                      ...p,
+                      case: normalizedCase,
+                      caseCategory: matchedCategory?.id ?? (normalizedCase ? "other" : ""),
+                    };
+                  })}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                 />
-                {formData.case && activeCat && (
+                {displayCat && (
                   <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full"
-                    style={{ background: activeCat.bg, color: activeCat.color, border: `1px solid ${activeCat.border}` }}>
+                    style={{ background: displayCat.bg, color: displayCat.color, border: `1px solid ${displayCat.border}` }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check_circle</span>
-                    {activeCat.label}
+                    {displayCat.label}
                   </div>
                 )}
               </div>
@@ -530,13 +566,13 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                                   key={c}
                                   type="button"
                                   onClick={() => handleSelectCase(cat.id, c)}
-                                  className="text-left text-xs px-3 py-2 rounded-lg border transition-all font-medium hover:-translate-y-0.5"
+                                  className={`center-fill-option text-left text-xs px-3 py-2 rounded-lg border transition-all font-medium ${isSelected ? "center-fill-option-selected" : ""}`}
                                   style={isSelected
                                     ? { background: cat.bg, borderColor: cat.color, color: cat.color }
-                                    : { background: "transparent", borderColor: "var(--outline-variant, #cac4d0)", color: "var(--on-surface, #1c1b1f)" }
+                                    : { background: "transparent", borderColor: "var(--outline-variant, #cac4d0)", color: "var(--on-surface, #1c1b1f)", ["--fill-hover-bg" as string]: cat.bg, ["--fill-hover-border" as string]: cat.border }
                                   }
                                 >
-                                  {c}
+                                  <span className="relative z-10">{c}</span>
                                 </button>
                               );
                             })}
@@ -556,9 +592,9 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
             <div className="flex flex-col gap-4 max-w-2xl mx-auto animate-fade-in">
 
               {/* Case badge reminder */}
-              {formData.case && activeCat && (
+              {displayCat && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold"
-                  style={{ background: activeCat.bg, color: activeCat.color, border: `1px solid ${activeCat.border}` }}>
+                  style={{ background: displayCat.bg, color: displayCat.color, border: `1px solid ${displayCat.border}` }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 14 }}>label</span>
                   {formData.case}
                 </div>
@@ -613,13 +649,13 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                           key={opt.value}
                           type="button"
                           onClick={() => setFormData({ ...formData, progress: opt.value })}
-                          className="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all text-left"
+                          className={`center-fill-option flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all text-left ${formData.progress === opt.value ? "center-fill-option-selected" : ""}`}
                           style={formData.progress === opt.value
                             ? { background: opt.bg, borderColor: opt.dot, color: opt.text }
-                            : { background: "transparent", borderColor: "var(--outline-variant)", color: "var(--on-surface-variant)" }
+                            : { background: "transparent", borderColor: "var(--outline-variant)", color: "var(--on-surface-variant)", ["--fill-hover-bg" as string]: opt.bg, ["--fill-hover-border" as string]: opt.border }
                           }
                         >
-                          <div className="flex items-center gap-1.5">
+                          <div className="relative z-10 flex items-center gap-1.5">
                             <div className="w-2 h-2 rounded-full" style={{ background: formData.progress === opt.value ? opt.dot : "var(--outline-variant)" }} />
                             <div>
                               <div>{opt.label}</div>
@@ -829,15 +865,24 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                   <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Case type</p>
                 </div>
                 <div className="px-4 py-3 flex items-center gap-3">
-                  {activeCat && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: activeCat.bg, color: activeCat.color, border: `1px solid ${activeCat.border}` }}>
-                      {activeCat.label}
+                  {displayCat && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: displayCat.bg, color: displayCat.color, border: `1px solid ${displayCat.border}` }}>
+                      {displayCat.label}
                     </span>
                   )}
                   {isEditingReview ? (
                     <input
                       type="text" value={formData.case}
                       onChange={(e) => setFormData({ ...formData, case: e.target.value })}
+                      onBlur={() => setFormData((p) => {
+                        const normalizedCase = normalizeCaseType(p.case);
+                        const matchedCategory = getCategoryForCase(normalizedCase);
+                        return {
+                          ...p,
+                          case: normalizedCase,
+                          caseCategory: matchedCategory?.id ?? (normalizedCase ? "other" : ""),
+                        };
+                      })}
                       className="flex-1 bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                     />
                   ) : (

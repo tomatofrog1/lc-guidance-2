@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS cases (
   "case"     TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   sanction   TEXT NOT NULL,
-  progress   TEXT NOT NULL DEFAULT 'Pending'
+  progress   TEXT NOT NULL DEFAULT 'Pending',
+  proofs     TEXT NOT NULL DEFAULT '[]'
 );
 "#,
     )?;
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS cases (
     let mut has_date_filed = false;
     let mut has_middle_initial = false;
     let mut has_description = false;
+    let mut has_proofs = false;
     while let Some(row) = rows.next()? {
         let name: String = row.get(1)?;
         if name == "date_filed" {
@@ -38,6 +40,9 @@ CREATE TABLE IF NOT EXISTS cases (
         }
         if name == "description" {
             has_description = true;
+        }
+        if name == "proofs" {
+            has_proofs = true;
         }
     }
 
@@ -62,6 +67,42 @@ ALTER TABLE cases ADD COLUMN middle_initial TEXT NOT NULL DEFAULT '';
         connection.execute_batch(
             r#"
 ALTER TABLE cases ADD COLUMN description TEXT NOT NULL DEFAULT '';
+"#,
+        )?;
+    }
+
+    if !has_proofs {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN proofs TEXT NOT NULL DEFAULT '[]';
+"#,
+        )?;
+    }
+
+    let legacy_proof_table_count: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'case_proofs'",
+        [],
+        |row| row.get(0),
+    )?;
+
+    if legacy_proof_table_count > 0 {
+        connection.execute_batch(
+            r#"
+UPDATE cases
+SET proofs = COALESCE((
+  SELECT json_group_array(json_object(
+    'name', name,
+    'data', data,
+    'created_at', created_at
+  ))
+  FROM case_proofs
+  WHERE case_proofs.case_id = cases.id
+), '[]')
+WHERE EXISTS (
+  SELECT 1 FROM case_proofs WHERE case_proofs.case_id = cases.id
+);
+
+DROP TABLE case_proofs;
 "#,
         )?;
     }

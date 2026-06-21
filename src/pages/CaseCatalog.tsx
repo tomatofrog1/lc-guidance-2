@@ -20,6 +20,13 @@ interface CaseRecord {
 
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
 
+const getTodayDateString = () => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 const formatIncidentDate = (dateStr: string) => {
   if (!dateStr) return "—";
@@ -135,6 +142,7 @@ export default function CaseCatalog() {
   const [endDate, setEndDate] = useState("");
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const todayDate = getTodayDateString();
 
   const loadCases = useCallback(async () => {
     try {
@@ -250,6 +258,26 @@ export default function CaseCatalog() {
     }
   };
 
+  const handleStartDateChange = (value: string) => {
+    const clampedValue = value && value > todayDate ? todayDate : value;
+    setStartDate(clampedValue);
+    if (endDate && clampedValue && endDate < clampedValue) {
+      setEndDate("");
+    }
+  };
+
+  const handleEndDateChange = (value: string) => {
+    if (value && value > todayDate) {
+      setEndDate(todayDate);
+      return;
+    }
+    if (value && startDate && value < startDate) {
+      setEndDate(startDate);
+      return;
+    }
+    setEndDate(value);
+  };
+
   const isFilterModified = 
     searchQuery !== "" || 
     statusFilter !== "All Statuses" || 
@@ -345,17 +373,20 @@ export default function CaseCatalog() {
           {/* Start Date */}
           <DatePicker
             value={startDate}
-            onChange={setStartDate}
+            onChange={handleStartDateChange}
             prefix="Start Date:"
             placeholder="Pick start date"
+            max={todayDate}
           />
 
           {/* End Date */}
           <DatePicker
             value={endDate}
-            onChange={setEndDate}
+            onChange={handleEndDateChange}
             prefix="End Date:"
             placeholder="Pick end date"
+            min={startDate || undefined}
+            max={todayDate}
           />
         </div>
 

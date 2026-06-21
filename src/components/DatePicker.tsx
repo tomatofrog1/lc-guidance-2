@@ -6,6 +6,8 @@ interface DatePickerProps {
   label?: string;
   prefix?: string;
   placeholder?: string;
+  min?: string;
+  max?: string;
 }
 
 const MONTHS = [
@@ -15,7 +17,7 @@ const MONTHS = [
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-export default function DatePicker({ value, onChange, prefix, placeholder = "Pick a date" }: DatePickerProps) {
+export default function DatePicker({ value, onChange, prefix, placeholder = "Pick a date", min, max }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const [currentDate, setCurrentDate] = useState(() => {
@@ -96,7 +98,14 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
     return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
   }
 
+  const isDateDisabled = (dateStr: string) => {
+    if (min && dateStr < min) return true;
+    if (max && dateStr > max) return true;
+    return false;
+  };
+
   const handleSelectDay = (dateStr: string) => {
+    if (isDateDisabled(dateStr)) return;
     onChange(dateStr);
     setIsOpen(false);
   };
@@ -192,14 +201,18 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
             {allCells.map(({ day, isCurrentMonth, dateStr }, index) => {
               const isSelected = value === dateStr;
               const isToday = formatDateString(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()) === dateStr;
+              const isDisabled = isDateDisabled(dateStr);
               
               return (
                 <button
                   key={index}
                   type="button"
+                  disabled={isDisabled}
                   onClick={() => handleSelectDay(dateStr)}
                   className={`aspect-square w-full rounded-lg text-xs font-medium flex items-center justify-center transition-all ${
-                    isSelected
+                    isDisabled
+                      ? "text-secondary opacity-20 cursor-not-allowed"
+                      : isSelected
                       ? "bg-primary text-white font-bold"
                       : isToday
                       ? "bg-primary-container/10 border border-primary text-primary font-bold hover:bg-surface-container"
