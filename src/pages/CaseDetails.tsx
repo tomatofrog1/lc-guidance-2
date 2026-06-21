@@ -9,6 +9,7 @@ interface CaseRecord {
   level: string;
   section: string;
   date: string;
+  date_filed: string;
   adviser: string;
   case: string;
   sanction: string;
@@ -33,6 +34,39 @@ const formatDate = (dateString: string) => {
   });
 };
 
+const formatDateTime = (dateStr: string) => {
+  if (!dateStr) return "—";
+  const parsed = new Date(dateStr);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return dateStr;
+  }
+
+  const hasTime = dateStr.includes("T") || dateStr.includes(":") || dateStr.includes(" ");
+  
+  if (!hasTime) {
+    const formatted = parsed.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    return formatted.replace(/^[a-zA-Z]+/, (m) => m.toUpperCase());
+  }
+
+  const options: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  };
+
+  let formatted = parsed.toLocaleString("en-US", options);
+  formatted = formatted.replace(" at ", ", ");
+  return formatted.replace(/^[a-zA-Z]+/, (m) => m.toUpperCase());
+};
+
 export default function CaseDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -50,6 +84,7 @@ export default function CaseDetails() {
     section: "",
     adviser: "",
     date: "",
+    date_filed: "",
     case: "",
     sanction: "",
     progress: ""
@@ -74,6 +109,7 @@ export default function CaseDetails() {
         section: data.section,
         adviser: data.adviser,
         date: data.date,
+        date_filed: data.date_filed,
         case: data.case,
         sanction: data.sanction,
         progress: data.progress
@@ -173,6 +209,7 @@ export default function CaseDetails() {
         level: editForm.level.trim(),
         section: editForm.section.trim(),
         date: editForm.date,
+        dateFiled: editForm.date_filed,
         adviser: editForm.adviser.trim(),
         case: editForm.case.trim(),
         sanction: editForm.sanction.trim(),
@@ -251,6 +288,7 @@ export default function CaseDetails() {
                     section: caseRecord.section,
                     adviser: caseRecord.adviser,
                     date: caseRecord.date,
+                    date_filed: caseRecord.date_filed,
                     case: caseRecord.case,
                     sanction: caseRecord.sanction,
                     progress: caseRecord.progress
@@ -419,6 +457,8 @@ export default function CaseDetails() {
             <div className="space-y-5">
               <div>
                 <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Date Filed</label>
+                <p className="text-sm text-on-surface mb-4">{formatDateTime(caseRecord.date_filed)}</p>
+                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Date of Incident</label>
                 {isEditing ? (
                   <input
                     type="date"

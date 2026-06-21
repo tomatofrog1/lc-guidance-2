@@ -10,6 +10,7 @@ interface CaseRecord {
   level: string;
   section: string;
   date: string;
+  date_filed: string;
   adviser: string;
   case: string;
   sanction: string;
@@ -18,18 +19,69 @@ interface CaseRecord {
 
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
 
-const formatDate = (date: string) => {
-  const parsed = new Date(date);
+
+const formatIncidentDate = (dateStr: string) => {
+  if (!dateStr) return "—";
+  const parsed = new Date(dateStr);
 
   if (Number.isNaN(parsed.getTime())) {
-    return date;
+    return dateStr;
   }
 
-  return parsed.toLocaleDateString(undefined, {
+  return parsed.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
   });
+};
+
+const formatRelativeFiled = (dateStr: string) => {
+  if (!dateStr) return { primary: "—", secondary: "" };
+  const parsed = new Date(dateStr);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return { primary: dateStr, secondary: "" };
+  }
+
+  const today = new Date();
+  const todayZero = new Date(today);
+  todayZero.setHours(0, 0, 0, 0);
+  const parsedZero = new Date(parsed);
+  parsedZero.setHours(0, 0, 0, 0);
+
+  const diffTime = todayZero.getTime() - parsedZero.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    const timeFormatted = parsed.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).replace(/\b(am|pm)\b/gi, (m) => m.toUpperCase());
+    return {
+      primary: "Today",
+      secondary: timeFormatted,
+    };
+  } else if (diffDays === 1) {
+    const timeFormatted = parsed.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).replace(/\b(am|pm)\b/gi, (m) => m.toUpperCase());
+    return {
+      primary: "Yesterday",
+      secondary: timeFormatted,
+    };
+  } else {
+    const dateFormatted = parsed.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    return {
+      primary: `${diffDays} days ago`,
+      secondary: dateFormatted,
+    };
+  }
 };
 
 const isResolved = (progress: string) => progress.toLowerCase() === "resolved";
@@ -75,11 +127,13 @@ export default function CaseCatalog() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [dateSort, setDateSort] = useState<"default" | "desc" | "asc">("default");
-  const [typeFilter, setTypeFilter] = useState("All Types");
+  const [sortBy, setSortBy] = useState<"date_filed" | "date" | null>(null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const loadCases = useCallback(async () => {
     try {
@@ -137,14 +191,7 @@ export default function CaseCatalog() {
       });
     }
 
-    if (typeFilter !== "All Types") {
-      result = result.filter(c => {
-        if (typeFilter === "Academic") return c.case.toLowerCase().includes("academic");
-        if (typeFilter === "Behavioral") return c.case.toLowerCase().includes("behavioral") || c.case.toLowerCase().includes("behavioural");
-        if (typeFilter === "Attendance") return c.case.toLowerCase().includes("attendance") || c.case.toLowerCase().includes("absenteeism") || c.case.toLowerCase().includes("truancy");
-        return c.case === typeFilter;
-      });
-    }
+
 
     if (statusFilter !== "All Statuses") {
       result = result.filter(c => {
@@ -159,7 +206,7 @@ export default function CaseCatalog() {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
       result = result.filter((c) => {
-        const dateVal = new Date(c.date);
+        const dateVal = new Date(c.date_filed || c.date);
         return dateVal >= start;
       });
     }
@@ -168,45 +215,61 @@ export default function CaseCatalog() {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
       result = result.filter((c) => {
-        const dateVal = new Date(c.date);
+        const dateVal = new Date(c.date_filed || c.date);
         return dateVal <= end;
       });
     }
 
-    if (dateSort !== "default") {
-      result = [...result].sort((a, b) => {
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
-        
-        if (dateSort === "asc") return dateA - dateB;
-        return dateB - dateA;
-      });
-    }
+    result = [...result].sort((a, b) => {
+      const activeSortField = sortBy || "date_filed";
+      const activeSortOrder = sortBy ? sortOrder : "desc";
+
+      const dateA = new Date(activeSortField === "date_filed" ? (a.date_filed || a.date) : a.date).getTime();
+      const dateB = new Date(activeSortField === "date_filed" ? (b.date_filed || b.date) : b.date).getTime();
+      
+      if (activeSortOrder === "asc") return dateA - dateB;
+      return dateB - dateA;
+    });
     
     return result;
-  }, [cases, searchQuery, dateSort, typeFilter, statusFilter, startDate, endDate]);
+  }, [cases, searchQuery, sortBy, sortOrder, statusFilter, startDate, endDate]);
 
-  const toggleDateSort = () => {
-    setDateSort(prev => {
-      if (prev === "default") return "desc";
-      if (prev === "desc") return "asc";
-      return "default";
-    });
+  const handleSort = (field: "date_filed" | "date") => {
+    if (sortBy === field) {
+      if (sortOrder === "desc") {
+        setSortOrder("asc");
+      } else {
+        setSortBy(null);
+        setSortOrder("desc");
+      }
+    } else {
+      setSortBy(field);
+      setSortOrder("desc");
+    }
   };
 
   const isFilterModified = 
     searchQuery !== "" || 
-    typeFilter !== "All Types" || 
     statusFilter !== "All Statuses" || 
     startDate !== "" || 
     endDate !== "";
 
   const resetFilters = () => {
     setSearchQuery("");
-    setTypeFilter("All Types");
     setStatusFilter("All Statuses");
     setStartDate("");
     setEndDate("");
+  };
+
+  const handleDeleteCase = async () => {
+    if (deleteConfirmId === null) return;
+    try {
+      await invoke("delete_case", { id: deleteConfirmId });
+      setDeleteConfirmId(null);
+      window.dispatchEvent(new Event("cases:changed"));
+    } catch (err) {
+      alert("Failed to delete case: " + err);
+    }
   };
 
   return (
@@ -235,67 +298,53 @@ export default function CaseCatalog() {
         </div>
       </div>
 
-      {/* Search & Filters Row */}
-      <div className="flex flex-col xl:flex-row gap-3 items-center justify-between bg-surface p-4 border border-outline-variant rounded-xl shadow-sm">
+      {/* Search & Filters System */}
+      <div className="bg-surface px-4 py-4 border border-outline-variant rounded-xl shadow-sm w-full flex flex-col">
         {/* Search Input */}
-        <div className="relative flex items-center flex-1 w-full min-w-0">
-          <span className="material-symbols-outlined text-secondary absolute left-3" style={{ fontSize: '20px' }}>search</span>
+        <div className="relative w-full mb-4">
+          <span className="material-symbols-outlined text-secondary absolute left-3 top-1/2 -translate-y-1/2" style={{ fontSize: '18px' }}>search</span>
           <input 
             type="text" 
-            placeholder="Search Case ID, student name, or case type..." 
+            placeholder="Search Case ID, student name..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-10 h-[38px] bg-surface-container border border-outline-variant rounded-full text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+            className="w-full pl-9 pr-8 h-10 bg-surface border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-on-surface placeholder:text-on-surface-variant/70"
           />
           {searchQuery && (
             <button 
               onClick={() => setSearchQuery("")} 
-              className="absolute right-3 text-secondary hover:text-on-surface"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-on-surface flex items-center justify-center"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
             </button>
           )}
         </div>
 
-        {/* Filters Group */}
-        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-          {/* Type Filter */}
-          <div className="relative">
-            <select 
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="appearance-none bg-surface-container hover:bg-surface-container-high transition-colors border border-outline-variant rounded-full pl-4 pr-10 h-[38px] font-body-md text-sm text-on-surface cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-              <option value="All Types">All Types</option>
-              <option value="Academic">Academic</option>
-              <option value="Behavioral">Behavioral</option>
-              <option value="Attendance">Attendance</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-on-surface-variant">
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>expand_more</span>
-            </div>
-          </div>
 
-          {/* Status Filter */}
-          <div className="relative">
-            <select 
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="appearance-none bg-surface-container hover:bg-surface-container-high transition-colors border border-outline-variant rounded-full pl-4 pr-10 h-[38px] font-body-md text-sm text-on-surface cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-              <option value="All Statuses">All Statuses</option>
-              <option value="Pending">Pending</option>
-              <option value="Resolved">Resolved</option>
-              <option value="Reprimand">Reprimand</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-on-surface-variant">
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>expand_more</span>
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-on-surface-variant whitespace-nowrap min-w-[52px]">Status</span>
+          
+          {["All Statuses", "Pending", "Resolved", "Reprimand"].map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`inline-flex items-center px-3 py-1.5 rounded-full border text-[13px] whitespace-nowrap transition-all select-none ${
+                statusFilter === status 
+                  ? "bg-[#EEEDFE] border-[#AFA9EC] text-[#3C3489]" 
+                  : "bg-surface border-outline-variant text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+              }`}
+            >
+              {status === "All Statuses" ? "All" : status}
+            </button>
+          ))}
+
+          <div className="w-[1px] h-5 bg-outline-variant/60 mx-1"></div>
 
           {/* Start Date */}
           <DatePicker
             value={startDate}
             onChange={setStartDate}
-            prefix="Start:"
+            prefix="Start Date:"
             placeholder="Pick start date"
           />
 
@@ -303,24 +352,50 @@ export default function CaseCatalog() {
           <DatePicker
             value={endDate}
             onChange={setEndDate}
-            prefix="End:"
+            prefix="End Date:"
             placeholder="Pick end date"
           />
-
-          {/* Reset Filters Icon Button */}
-          <button
-            onClick={resetFilters}
-            disabled={!isFilterModified}
-            title="Reset Filters"
-            className={`w-[38px] h-[38px] rounded-full flex items-center justify-center border shrink-0 transition-all ${
-              isFilterModified
-                ? "bg-primary text-white border-primary hover:bg-primary/95 cursor-pointer shadow-sm"
-                : "bg-surface-container text-secondary/40 border-outline-variant opacity-60 cursor-not-allowed"
-            }`}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>restart_alt</span>
-          </button>
         </div>
+
+        {/* Active Filters Row */}
+        {isFilterModified && (
+          <div className="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-outline-variant/40">
+            {searchQuery && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-xs text-on-surface">
+                <span className="font-medium">"{searchQuery}"</span>
+                <button onClick={() => setSearchQuery("")} className="text-on-surface-variant hover:text-on-surface flex items-center justify-center">
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+                </button>
+              </div>
+            )}
+
+            {statusFilter !== "All Statuses" && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-xs text-on-surface">
+                <span className="text-on-surface-variant">Status:</span>
+                <span className="font-medium">{statusFilter}</span>
+                <button onClick={() => setStatusFilter("All Statuses")} className="text-on-surface-variant hover:text-on-surface flex items-center justify-center">
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+                </button>
+              </div>
+            )}
+
+            {(startDate || endDate) && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-xs text-on-surface">
+                <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '14px' }}>calendar_today</span>
+                <span className="font-medium">
+                  {startDate ? formatIncidentDate(startDate) : "Any"} — {endDate ? formatIncidentDate(endDate) : "Any"}
+                </span>
+                <button onClick={() => { setStartDate(""); setEndDate(""); }} className="text-on-surface-variant hover:text-on-surface flex items-center justify-center">
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+                </button>
+              </div>
+            )}
+
+            <button onClick={resetFilters} className="text-xs text-primary hover:text-primary/80 font-medium ml-1 transition-colors">
+              Clear all
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-surface border border-surface-variant rounded-lg overflow-hidden shadow-sm flex flex-col">
@@ -331,12 +406,27 @@ export default function CaseCatalog() {
                 <th className="p-table-cell-padding font-semibold">ID</th>
                 <th 
                   className="p-table-cell-padding font-semibold cursor-pointer select-none group"
-                  onClick={toggleDateSort}
+                  onClick={() => handleSort("date")}
                 >
-                  <div className="flex items-center gap-1">
-                    Date
-                    <span className={`material-symbols-outlined text-[16px] transition-colors ${dateSort !== 'default' ? 'text-primary' : 'text-on-surface-variant group-hover:text-primary'}`}>
-                      {dateSort === "default" ? "swap_vert" : dateSort === "desc" ? "arrow_downward" : "arrow_upward"}
+                  <div className="flex items-center gap-1 text-[11px] tracking-wider uppercase text-secondary">
+                    Incident Date
+                    <span className={`material-symbols-outlined text-[16px] transition-all ${
+                      sortBy === "date" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
+                    }`}>
+                      {sortBy === "date" ? (sortOrder === "desc" ? "arrow_downward" : "arrow_upward") : "arrow_upward"}
+                    </span>
+                  </div>
+                </th>
+                <th 
+                  className="p-table-cell-padding font-semibold cursor-pointer select-none group"
+                  onClick={() => handleSort("date_filed")}
+                >
+                  <div className="flex items-center gap-1 text-[11px] tracking-wider uppercase text-secondary">
+                    Filed
+                    <span className={`material-symbols-outlined text-[16px] transition-all ${
+                      sortBy === "date_filed" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
+                    }`}>
+                      {sortBy === "date_filed" ? (sortOrder === "desc" ? "arrow_downward" : "arrow_upward") : "arrow_upward"}
                     </span>
                   </div>
                 </th>
@@ -344,26 +434,27 @@ export default function CaseCatalog() {
                 <th className="p-table-cell-padding font-semibold">Case Type</th>
                 <th className="p-table-cell-padding font-semibold">Status</th>
                 <th className="p-table-cell-padding font-semibold">Adviser</th>
+                <th className="py-1 px-4 font-semibold text-right"></th>
               </tr>
             </thead>
             <tbody className="font-body-md text-sm text-on-surface">
               {isLoading && (
                 <tr>
-                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={6}>
+                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
                     Loading cases...
                   </td>
                 </tr>
               )}
               {!isLoading && error && (
                 <tr>
-                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={6}>
+                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
                     Backend unavailable. Open with npm run tauri -- dev to load cases.
                   </td>
                 </tr>
               )}
               {!isLoading && !error && filteredAndSortedCases.length === 0 && (
                 <tr>
-                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={6}>
+                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
                     No cases match your filters.
                   </td>
                 </tr>
@@ -377,7 +468,20 @@ export default function CaseCatalog() {
                   <td className="p-table-cell-padding">
                     <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
                   </td>
-                  <td className="p-table-cell-padding text-on-surface-variant">{formatDate(caseRecord.date)}</td>
+                  <td className="p-table-cell-padding font-bold text-on-surface">{formatIncidentDate(caseRecord.date)}</td>
+                  <td className="p-table-cell-padding">
+                    {(() => {
+                      const rel = formatRelativeFiled(caseRecord.date_filed);
+                      return (
+                        <div className="flex flex-col leading-tight py-0.5">
+                          <span className="font-semibold text-on-surface text-[13px]">{rel.primary}</span>
+                          {rel.secondary && (
+                            <span className="text-[11px] text-secondary mt-0.5">{rel.secondary}</span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="p-table-cell-padding font-medium">{caseRecord.first_name} {caseRecord.last_name}</td>
                   <td className="p-table-cell-padding">
                     <span className="bg-surface-container-high px-2 py-1 rounded text-xs text-on-surface-variant border border-outline-variant">{caseRecord.case}</span>
@@ -386,6 +490,18 @@ export default function CaseCatalog() {
                     <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block`}>{caseRecord.progress}</span>
                   </td>
                   <td className="p-table-cell-padding text-on-surface-variant">{caseRecord.adviser}</td>
+                  <td className="py-1 px-4 text-right">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirmId(caseRecord.id);
+                      }}
+                      className="text-secondary hover:text-error transition-all p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
+                      title="Delete Record"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -403,6 +519,40 @@ export default function CaseCatalog() {
           </div>
         </div>
       </div>
+
+      {deleteConfirmId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/45" 
+            style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+            onClick={() => setDeleteConfirmId(null)}
+          />
+          <div className="relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-error mb-3">
+              <span className="material-symbols-outlined text-[28px]">warning</span>
+              <h3 className="text-xl font-bold">Confirm Deletion</h3>
+            </div>
+            <p className="text-secondary text-sm mb-6 leading-relaxed">
+              Are you sure you want to delete case record <span className="font-bold text-on-surface">{formatCaseId(deleteConfirmId)}</span>? This action cannot be undone and will permanently remove this record from the database.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-4 py-2 rounded-lg font-bold text-sm bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface border border-outline-variant"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteCase}
+                className="px-4 py-2 rounded-lg font-bold text-sm bg-error hover:bg-[#b91c1c] transition-colors text-white shadow-sm flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">delete_forever</span>
+                Delete Record
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

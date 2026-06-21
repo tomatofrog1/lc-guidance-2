@@ -9,6 +9,7 @@ interface CaseRecord {
   level: string;
   section: string;
   date: string;
+  date_filed: string;
   adviser: string;
   case: string;
   sanction: string;
@@ -115,7 +116,7 @@ export default function SummaryReports() {
       percentage: ((t[1] / total) * 100).toFixed(0)
     }));
     
-    const recentCases = [...cases].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+    const recentCases = [...cases].sort((a, b) => new Date(b.date_filed || b.date).getTime() - new Date(a.date_filed || a.date).getTime()).slice(0, 5);
 
     const monthCounts: Record<string, number> = {};
     const months = [];
@@ -128,7 +129,7 @@ export default function SummaryReports() {
     }
     
     cases.forEach(c => {
-        const d = new Date(c.date);
+        const d = new Date(c.date_filed || c.date);
         if (!isNaN(d.getTime())) {
             const m = d.toLocaleDateString(undefined, { month: 'short' });
             if (monthCounts[m] !== undefined) {
@@ -329,7 +330,7 @@ export default function SummaryReports() {
                   </span>
                 </div>
                 <div className="w-1/6 text-right">
-                  <p className="font-body-md text-body-md text-secondary">{formatDate(caseRecord.date)}</p>
+                  <p className="font-body-md text-body-md text-secondary">{formatDate(caseRecord.date_filed || caseRecord.date)}</p>
                 </div>
               </div>
             );

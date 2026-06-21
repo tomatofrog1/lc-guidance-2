@@ -121,6 +121,14 @@ function getCategoryForCase(caseStr: string) {
   return null;
 }
 
+const getTodayDateString = () => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 // ── Component ───────────────────────────────────────────────────────────────
 export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -134,7 +142,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
-    date: "",
+    date: getTodayDateString(),
     case: "",
     caseCategory: "",
     sanction: "",
@@ -179,7 +187,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
         setFormData({
           firstName: "",
           lastName: "",
-          date: "",
+          date: getTodayDateString(),
           case: "",
           caseCategory: "",
           sanction: "",
@@ -236,7 +244,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
     setFormData({
       firstName: "",
       lastName: "",
-      date: "",
+      date: getTodayDateString(),
       case: "",
       caseCategory: "",
       sanction: "",
@@ -258,6 +266,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
         level: formData.level.trim(),
         section: formData.section.trim(),
         date: formData.date,
+        dateFiled: new Date().toISOString(),
         adviser: formData.adviser.trim(),
         case: formData.case.trim(),
         sanction: formData.sanction.trim(),
@@ -678,15 +687,15 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                 </div>
                 <div className="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-3">
                   {[
-                    { label: "Date", key: "date", type: "date" },
-                    { label: "Status", key: "progress", type: "text" },
-                  ].map(({ label, key, type }) => (
+                    { label: "Date of Incident", key: "date" },
+                    { label: "Status", key: "progress" },
+                  ].map(({ label, key }) => (
                     <div key={key}>
                       <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
-                      {isEditingReview && key !== "progress" ? (
-                        <input type={type} value={(formData as any)[key]}
-                          onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                      {isEditingReview && key === "date" ? (
+                        <input type="date" value={formData.date}
+                          onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                          className="w-full bg-surface-container border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                       ) : isEditingReview && key === "progress" ? (
                         <select value={formData.progress} onChange={(e) => setFormData({ ...formData, progress: e.target.value })}
@@ -694,7 +703,11 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                           {PROGRESS_OPTIONS.map(o => <option key={o.value}>{o.value}</option>)}
                         </select>
                       ) : (
-                        <p className="text-sm text-on-surface font-medium">{(formData as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}</p>
+                        <p className="text-sm text-on-surface font-medium">
+                          {key === "date" 
+                            ? new Date(formData.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+                            : (formData as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}
+                        </p>
                       )}
                     </div>
                   ))}
