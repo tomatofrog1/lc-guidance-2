@@ -147,6 +147,43 @@ const emptyFormData = () => ({
   uploadedProofs: [] as ProofItem[],
 });
 
+const collapseSpaces = (value: string) => value.replace(/\s+/g, " ").trim();
+
+const capitalizeWords = (value: string) =>
+  collapseSpaces(value)
+    .split(" ")
+    .map((word) => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : "")
+    .join(" ");
+
+const normalizeMiddleInitial = (value: string) => value.replace(/\s+/g, "").toUpperCase();
+
+const normalizeGradeLevel = (value: string) => {
+  const cleaned = collapseSpaces(value);
+  const match = cleaned.match(/^(?:grade\s*)?(\d{1,2})$/i);
+  if (match) {
+    const grade = Number(match[1]);
+    if (grade >= 7 && grade <= 12) return `Grade ${grade}`;
+  }
+  return capitalizeWords(cleaned);
+};
+
+const normalizeSection = (value: string) => {
+  const cleaned = collapseSpaces(value);
+  const upper = cleaned.toUpperCase();
+  if (SECTION_OPTIONS.includes(upper)) return upper;
+  return capitalizeWords(cleaned);
+};
+
+const normalizeStudentInfo = (data: ReturnType<typeof emptyFormData>) => ({
+  ...data,
+  firstName: capitalizeWords(data.firstName),
+  lastName: capitalizeWords(data.lastName),
+  middleInitial: normalizeMiddleInitial(data.middleInitial),
+  level: normalizeGradeLevel(data.level),
+  section: normalizeSection(data.section),
+  adviser: capitalizeWords(data.adviser),
+});
+
 // ── Component ───────────────────────────────────────────────────────────────
 export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalProps) {
   const [isVisible, setIsVisible] = useState(isOpen);
@@ -260,22 +297,24 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
       return;
     }
     if (currentStep === 2) {
+      const normalized = normalizeStudentInfo(formData);
+      setFormData(normalized);
       const requiredFields = [
-        formData.date,
-        formData.sanction,
-        formData.progress,
-        formData.lastName,
-        formData.firstName,
-        formData.level,
-        formData.section,
-        formData.adviser,
+        normalized.date,
+        normalized.sanction,
+        normalized.progress,
+        normalized.lastName,
+        normalized.firstName,
+        normalized.level,
+        normalized.section,
+        normalized.adviser,
       ];
 
       if (requiredFields.some((value) => !value.trim())) {
         showToast("Please fill out all required fields before continuing.");
         return;
       }
-      if (formData.date > getTodayDateString()) {
+      if (normalized.date > getTodayDateString()) {
         showToast("Date of incident cannot be later than today.");
         return;
       }
@@ -299,26 +338,28 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
 
   const handleFileCase = async () => {
     setSubmitError("");
-    if (!formData.case.trim()) {
+    const normalized = normalizeStudentInfo(formData);
+    setFormData(normalized);
+    if (!normalized.case.trim()) {
       showToast("Please fill out the required case type field.");
       setCurrentStep(1);
       return;
     }
     if (
-      !formData.date.trim() ||
-      !formData.sanction.trim() ||
-      !formData.progress.trim() ||
-      !formData.lastName.trim() ||
-      !formData.firstName.trim() ||
-      !formData.level.trim() ||
-      !formData.section.trim() ||
-      !formData.adviser.trim()
+      !normalized.date.trim() ||
+      !normalized.sanction.trim() ||
+      !normalized.progress.trim() ||
+      !normalized.lastName.trim() ||
+      !normalized.firstName.trim() ||
+      !normalized.level.trim() ||
+      !normalized.section.trim() ||
+      !normalized.adviser.trim()
     ) {
       showToast("Please fill out all required fields before filing.");
       setCurrentStep(2);
       return;
     }
-    if (formData.date > getTodayDateString()) {
+    if (normalized.date > getTodayDateString()) {
       showToast("Date of incident cannot be later than today.");
       setCurrentStep(2);
       return;
@@ -326,17 +367,17 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
     setIsSubmitting(true);
     try {
       const newCaseId = await invoke<number>("add_case", {
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        middleInitial: formData.middleInitial.trim(),
-        level: formData.level.trim(),
-        section: formData.section.trim(),
-        date: formData.date,
+        firstName: normalized.firstName,
+        lastName: normalized.lastName,
+        middleInitial: normalized.middleInitial,
+        level: normalized.level,
+        section: normalized.section,
+        date: normalized.date,
         dateFiled: new Date().toISOString(),
-        adviser: formData.adviser.trim(),
-        case: formData.case.trim(),
-        sanction: formData.sanction.trim(),
-        progress: formData.progress,
+        adviser: normalized.adviser,
+        case: normalized.case.trim(),
+        sanction: normalized.sanction.trim(),
+        progress: normalized.progress,
       });
 
       if (formData.uploadedProofs.length > 0) {
@@ -603,6 +644,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                         type="text" placeholder="e.g. Dela Cruz"
                         value={formData.lastName}
                         onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        onBlur={() => setFormData((p) => ({ ...p, lastName: capitalizeWords(p.lastName) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
@@ -615,6 +657,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                         type="text" placeholder="e.g. Juan"
                         value={formData.firstName}
                         onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        onBlur={() => setFormData((p) => ({ ...p, firstName: capitalizeWords(p.firstName) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
@@ -625,6 +668,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                         maxLength={3}
                         value={formData.middleInitial}
                         onChange={(e) => setFormData({ ...formData, middleInitial: e.target.value })}
+                        onBlur={() => setFormData((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
@@ -639,6 +683,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                       list="grade-level-options"
                       value={formData.level}
                       onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                      onBlur={() => setFormData((p) => ({ ...p, level: normalizeGradeLevel(p.level) }))}
                       className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                     />
                   </div>
@@ -653,6 +698,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                         list="section-options"
                         value={formData.section}
                         onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                        onBlur={() => setFormData((p) => ({ ...p, section: normalizeSection(p.section) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
@@ -665,6 +711,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                         type="text" placeholder="e.g. Mr. Santos"
                         value={formData.adviser}
                         onChange={(e) => setFormData({ ...formData, adviser: e.target.value })}
+                        onBlur={() => setFormData((p) => ({ ...p, adviser: capitalizeWords(p.adviser) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
@@ -849,6 +896,17 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                         <input type="text" value={(formData as any)[key]}
                           list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
                           onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                          onBlur={() => {
+                            if (key === "firstName" || key === "lastName" || key === "adviser") {
+                              setFormData((p) => ({ ...p, [key]: capitalizeWords((p as any)[key]) }));
+                            } else if (key === "middleInitial") {
+                              setFormData((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }));
+                            } else if (key === "level") {
+                              setFormData((p) => ({ ...p, level: normalizeGradeLevel(p.level) }));
+                            } else if (key === "section") {
+                              setFormData((p) => ({ ...p, section: normalizeSection(p.section) }));
+                            }
+                          }}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                       ) : (
