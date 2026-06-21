@@ -6,6 +6,7 @@ interface Case {
   id: number;
   first_name: string;
   last_name: string;
+  middle_initial: string;
   level: string;
   section: string;
   adviser: string;
@@ -149,6 +150,7 @@ export default function PendingCases() {
         id: caseRecord.id,
         firstName: caseRecord.first_name,
         lastName: caseRecord.last_name,
+        middleInitial: caseRecord.middle_initial,
         level: caseRecord.level,
         section: caseRecord.section,
         date: caseRecord.date,
@@ -191,6 +193,7 @@ export default function PendingCases() {
     return (
       c.first_name.toLowerCase().includes(q) ||
       c.last_name.toLowerCase().includes(q) ||
+      c.middle_initial.toLowerCase().includes(q) ||
       c.case.toLowerCase().includes(q) ||
       c.level.toLowerCase().includes(q) ||
       c.section.toLowerCase().includes(q)
@@ -324,7 +327,7 @@ export default function PendingCases() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-1.5">
                             <p className="text-sm font-bold text-on-surface truncate flex-1">
-                              {c.first_name} {c.last_name}
+                              {c.last_name}, {c.first_name}{c.middle_initial ? ` ${c.middle_initial}.` : ""}
                             </p>
                             {indicator && (
                               <span 
@@ -373,7 +376,7 @@ export default function PendingCases() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-xl font-extrabold text-on-surface leading-tight">
-                      {selectedCase.first_name} {selectedCase.last_name}
+                      {selectedCase.last_name}, {selectedCase.first_name}{selectedCase.middle_initial ? ` ${selectedCase.middle_initial}.` : ""}
                     </h3>
                     <p className="text-sm text-secondary mt-0.5">
                       {[selectedCase.level, selectedCase.section, selectedCase.adviser && `Adviser: ${selectedCase.adviser}`].filter(Boolean).join(" · ")}
@@ -432,7 +435,7 @@ export default function PendingCases() {
                   </div>
                   <div className="px-4 py-4 grid grid-cols-2 gap-x-6 gap-y-4">
                     {[
-                      { label: "Full name",    value: `${selectedCase.first_name} ${selectedCase.last_name}` },
+                      { label: "Full name",    value: `${selectedCase.last_name}, ${selectedCase.first_name}${selectedCase.middle_initial ? ` ${selectedCase.middle_initial}.` : ""}` },
                       { label: "Grade level",  value: selectedCase.level },
                       { label: "Section",      value: selectedCase.section },
                       { label: "Adviser",      value: selectedCase.adviser },
@@ -502,7 +505,7 @@ export default function PendingCases() {
                   <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant">
                     <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#0F6E56" }}>check_circle</span>
                     <p className="text-sm text-on-surface flex-1">
-                      Mark <span className="font-bold">{selectedCase.first_name} {selectedCase.last_name}</span>'s case as <span className="font-bold">Resolved</span>?
+                      Mark <span className="font-bold">{selectedCase.last_name}, {selectedCase.first_name}{selectedCase.middle_initial ? ` ${selectedCase.middle_initial}.` : ""}</span>'s case as <span className="font-bold">Resolved</span>?
                     </p>
                     <button
                       onClick={() => setConfirmState("idle")}
@@ -530,7 +533,7 @@ export default function PendingCases() {
                   <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant">
                     <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#A32D2D" }}>gavel</span>
                     <p className="text-sm text-on-surface flex-1">
-                      Mark <span className="font-bold">{selectedCase.first_name} {selectedCase.last_name}</span>'s case as <span className="font-bold">Reprimand</span>?
+                      Mark <span className="font-bold">{selectedCase.last_name}, {selectedCase.first_name}{selectedCase.middle_initial ? ` ${selectedCase.middle_initial}.` : ""}</span>'s case as <span className="font-bold">Reprimand</span>?
                     </p>
                     <button
                       onClick={() => setConfirmState("idle")}

@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, Fragment, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 interface ProofItem {
@@ -113,6 +113,9 @@ const PROGRESS_OPTIONS = [
   },
 ];
 
+const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
+const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMMS", "GAS"];
+
 // ── Helper ──────────────────────────────────────────────────────────────────
 function getCategoryForCase(caseStr: string) {
   for (const cat of CASE_CATEGORIES) {
@@ -129,33 +132,41 @@ const getTodayDateString = () => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+const emptyFormData = () => ({
+  firstName: "",
+  lastName: "",
+  middleInitial: "",
+  date: getTodayDateString(),
+  case: "",
+  caseCategory: "",
+  sanction: "",
+  progress: "Pending",
+  level: "",
+  section: "",
+  adviser: "",
+  uploadedProofs: [] as ProofItem[],
+});
+
 // ── Component ───────────────────────────────────────────────────────────────
 export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalProps) {
+  const [isVisible, setIsVisible] = useState(isOpen);
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditingReview, setIsEditingReview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
+  const [isToastVisible, setIsToastVisible] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>("behavioural");
+  const toastTimerRef = useRef<number | null>(null);
 
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    date: getTodayDateString(),
-    case: "",
-    caseCategory: "",
-    sanction: "",
-    progress: "Pending",
-    level: "",
-    section: "",
-    adviser: "",
-    uploadedProofs: [] as ProofItem[],
-  });
+  const [formData, setFormData] = useState(emptyFormData);
 
   const isFormEmpty = () =>
     !formData.firstName.trim() &&
     !formData.lastName.trim() &&
+    !formData.middleInitial.trim() &&
     !formData.date &&
     !formData.case.trim() &&
     !formData.sanction.trim() &&
@@ -164,6 +175,17 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
     !formData.adviser.trim() &&
     formData.uploadedProofs.length === 0;
 
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setIsToastVisible(false);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    window.requestAnimationFrame(() => setIsToastVisible(true));
+    toastTimerRef.current = window.setTimeout(() => {
+      setIsToastVisible(false);
+      window.setTimeout(() => setToastMessage(""), 180);
+    }, 2800);
+  };
+
   const handleCloseAttempt = () => {
     if (!isFormEmpty()) setShowConfirmClose(true);
     else onClose();
@@ -171,36 +193,41 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
 
   useEffect(() => {
     if (isOpen) {
+      setIsVisible(true);
+    } else {
+      const timer = window.setTimeout(() => setIsVisible(false), 220);
+      return () => window.clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
       setCurrentStep(1);
       setShowConfirmClose(false);
       setIsEditingReview(false);
       setSubmitError("");
+      setToastMessage("");
+      setIsToastVisible(false);
       const saved = localStorage.getItem("new_case_draft");
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setFormData(parsed);
+          setFormData({ ...emptyFormData(), ...parsed });
           const cat = getCategoryForCase(parsed.case);
           if (cat) setExpandedCategory(cat.id);
         } catch {}
       } else {
-        setFormData({
-          firstName: "",
-          lastName: "",
-          date: getTodayDateString(),
-          case: "",
-          caseCategory: "",
-          sanction: "",
-          progress: "Pending",
-          level: "",
-          section: "",
-          adviser: "",
-          uploadedProofs: [],
-        });
+        setFormData(emptyFormData());
         setExpandedCategory("behavioural");
       }
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   const handleSelectCase = (categoryId: string, caseName: string) => {
     setFormData((p) => ({ ...p, case: caseName, caseCategory: categoryId }));
@@ -228,6 +255,31 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
   const handleNext = () => {
     setIsEditingReview(false);
     setSubmitError("");
+    if (currentStep === 1 && !formData.case.trim()) {
+      showToast("Please fill out the required case type field.");
+      return;
+    }
+    if (currentStep === 2) {
+      const requiredFields = [
+        formData.date,
+        formData.sanction,
+        formData.progress,
+        formData.lastName,
+        formData.firstName,
+        formData.level,
+        formData.section,
+        formData.adviser,
+      ];
+
+      if (requiredFields.some((value) => !value.trim())) {
+        showToast("Please fill out all required fields before continuing.");
+        return;
+      }
+      if (formData.date > getTodayDateString()) {
+        showToast("Date of incident cannot be later than today.");
+        return;
+      }
+    }
     setCurrentStep((s) => Math.min(s + 1, 4));
   };
   const handleBack = () => {
@@ -241,28 +293,42 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
     setIsEditingReview(false);
     setSubmitError("");
     setExpandedCategory("behavioural");
-    setFormData({
-      firstName: "",
-      lastName: "",
-      date: getTodayDateString(),
-      case: "",
-      caseCategory: "",
-      sanction: "",
-      progress: "Pending",
-      level: "",
-      section: "",
-      adviser: "",
-      uploadedProofs: [],
-    });
+    setToastMessage("");
+    setFormData(emptyFormData());
   };
 
   const handleFileCase = async () => {
     setSubmitError("");
+    if (!formData.case.trim()) {
+      showToast("Please fill out the required case type field.");
+      setCurrentStep(1);
+      return;
+    }
+    if (
+      !formData.date.trim() ||
+      !formData.sanction.trim() ||
+      !formData.progress.trim() ||
+      !formData.lastName.trim() ||
+      !formData.firstName.trim() ||
+      !formData.level.trim() ||
+      !formData.section.trim() ||
+      !formData.adviser.trim()
+    ) {
+      showToast("Please fill out all required fields before filing.");
+      setCurrentStep(2);
+      return;
+    }
+    if (formData.date > getTodayDateString()) {
+      showToast("Date of incident cannot be later than today.");
+      setCurrentStep(2);
+      return;
+    }
     setIsSubmitting(true);
     try {
       const newCaseId = await invoke<number>("add_case", {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
+        middleInitial: formData.middleInitial.trim(),
         level: formData.level.trim(),
         section: formData.section.trim(),
         date: formData.date,
@@ -295,18 +361,18 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !isVisible) return null;
 
   const STEPS = ["Case type", "Student info", "Attach proofs", "Review"];
   const activeCat = getCategoryForCase(formData.case);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ease-out ${isOpen ? "opacity-100 new-case-modal-backdrop-enter" : "opacity-0 pointer-events-none"}`}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseAttempt} />
 
       {/* Panel */}
-      <div className="relative w-full max-w-[960px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+      <div className={`relative w-full max-w-[960px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden transition-all duration-200 ease-out ${isOpen ? "translate-y-0 scale-100 opacity-100 new-case-modal-panel-enter" : "translate-y-4 scale-[0.98] opacity-0"}`}>
 
         {/* ── Header ── */}
         <div className="px-7 py-4 bg-surface flex items-center justify-between border-b border-outline-variant shrink-0">
@@ -358,34 +424,37 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
 
         {/* ── Body ── */}
         <div className="overflow-y-auto flex-grow px-7 py-5 bg-surface-container-low">
+          <datalist id="grade-level-options">
+            {GRADE_LEVEL_OPTIONS.map((option) => <option key={option} value={option} />)}
+          </datalist>
+          <datalist id="section-options">
+            {SECTION_OPTIONS.map((option) => <option key={option} value={option} />)}
+          </datalist>
 
           {/* STEP 1 — Case Type Picker */}
           {currentStep === 1 && (
             <div className="flex flex-col gap-4 max-w-2xl mx-auto animate-fade-in">
 
-              {/* Selected case callout */}
-              {formData.case ? (
-                <div className="flex items-center gap-3 rounded-xl px-4 py-3 border"
-                  style={{ background: activeCat?.bg ?? "#F1EFE8", borderColor: activeCat?.border ?? "#D3D1C7" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: activeCat?.color }}>check_circle</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: activeCat?.color }}>
-                      {activeCat?.label}
-                    </p>
-                    <p className="text-sm font-bold text-on-surface truncate">{formData.case}</p>
+              <div className="bg-surface rounded-xl border border-outline-variant p-4">
+                <label className="flex items-center gap-1.5 text-[11px] font-bold text-secondary uppercase tracking-wider mb-2">
+                  Case type
+                  <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Select a case type below, or type a custom description."
+                  value={formData.case}
+                  onChange={(e) => setFormData((p) => ({ ...p, case: e.target.value, caseCategory: "custom" }))}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                />
+                {formData.case && activeCat && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full"
+                    style={{ background: activeCat.bg, color: activeCat.color, border: `1px solid ${activeCat.border}` }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check_circle</span>
+                    {activeCat.label}
                   </div>
-                  <button
-                    onClick={() => setFormData((p) => ({ ...p, case: "", caseCategory: "" }))}
-                    className="text-secondary hover:text-on-surface transition-colors"
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-xl bg-surface border border-outline-variant px-4 py-3 text-sm text-secondary">
-                  Select a case type below, or type a custom description.
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Category accordion */}
               <div className="flex flex-col gap-2">
@@ -407,45 +476,34 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                           expand_more
                         </span>
                       </button>
-                      {isOpen && (
-                        <div className="px-4 pb-3 pt-0 grid grid-cols-2 gap-1.5">
-                          {cat.cases.map((c) => {
-                            const isSelected = formData.case === c;
-                            return (
-                              <button
-                                key={c}
-                                type="button"
-                                onClick={() => handleSelectCase(cat.id, c)}
-                                className="text-left text-xs px-3 py-2 rounded-lg border transition-all font-medium"
-                                style={isSelected
-                                  ? { background: cat.bg, borderColor: cat.color, color: cat.color }
-                                  : { background: "transparent", borderColor: "var(--outline-variant, #cac4d0)", color: "var(--on-surface, #1c1b1f)" }
-                                }
-                              >
-                                {c}
-                              </button>
-                            );
-                          })}
+                      <div className={`grid transition-all duration-200 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                        <div className="overflow-hidden">
+                          <div className="px-4 pb-3 pt-0 grid grid-cols-2 gap-1.5">
+                            {cat.cases.map((c) => {
+                              const isSelected = formData.case === c;
+                              return (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  onClick={() => handleSelectCase(cat.id, c)}
+                                  className="text-left text-xs px-3 py-2 rounded-lg border transition-all font-medium hover:-translate-y-0.5"
+                                  style={isSelected
+                                    ? { background: cat.bg, borderColor: cat.color, color: cat.color }
+                                    : { background: "transparent", borderColor: "var(--outline-variant, #cac4d0)", color: "var(--on-surface, #1c1b1f)" }
+                                  }
+                                >
+                                  {c}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Custom case fallback */}
-              <div className="bg-surface rounded-xl border border-outline-variant p-4">
-                <label className="block text-[11px] font-bold text-secondary uppercase tracking-wider mb-2">
-                  Custom case description
-                </label>
-                <input
-                  type="text"
-                  placeholder="Describe a case not listed above…"
-                  value={formData.case}
-                  onChange={(e) => setFormData((p) => ({ ...p, case: e.target.value, caseCategory: "custom" }))}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                />
-              </div>
             </div>
           )}
 
@@ -467,16 +525,31 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Incident details</p>
                 <div className="flex flex-col gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Date of incident</label>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                      Date of incident
+                      <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                    </label>
                     <input
                       type="date"
                       value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      max={getTodayDateString()}
+                      onChange={(e) => {
+                        const nextDate = e.target.value;
+                        if (nextDate > getTodayDateString()) {
+                          showToast("Date of incident cannot be later than today.");
+                          setFormData({ ...formData, date: getTodayDateString() });
+                          return;
+                        }
+                        setFormData({ ...formData, date: nextDate });
+                      }}
                       className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Sanction / action taken</label>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                      Sanction / action taken
+                      <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                    </label>
                     <textarea
                       rows={3}
                       placeholder="Describe the sanction or action taken…"
@@ -486,7 +559,10 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Case status</label>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-2">
+                      Case status
+                      <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                    </label>
                     <div className="flex gap-2">
                       {PROGRESS_OPTIONS.map((opt) => (
                         <button
@@ -517,9 +593,24 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
               <div className="bg-surface rounded-xl border border-outline-variant p-5">
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Student information</p>
                 <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">First name</label>
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                        Last name
+                        <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                      </label>
+                      <input
+                        type="text" placeholder="e.g. Dela Cruz"
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                        First name
+                        <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                      </label>
                       <input
                         type="text" placeholder="e.g. Juan"
                         value={formData.firstName}
@@ -528,19 +619,24 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Last name</label>
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Middle initial</label>
                       <input
-                        type="text" placeholder="e.g. Dela Cruz"
-                        value={formData.lastName}
-                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        type="text" placeholder="e.g. M"
+                        maxLength={3}
+                        value={formData.middleInitial}
+                        onChange={(e) => setFormData({ ...formData, middleInitial: e.target.value })}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Grade level</label>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                      Grade level
+                      <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                    </label>
                     <input
                       type="text" placeholder="e.g. Grade 10"
+                      list="grade-level-options"
                       value={formData.level}
                       onChange={(e) => setFormData({ ...formData, level: e.target.value })}
                       className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
@@ -548,16 +644,23 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Section</label>
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                        Section
+                        <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                      </label>
                       <input
-                        type="text" placeholder="e.g. Rizal"
+                        type="text" placeholder="e.g. STEM"
+                        list="section-options"
                         value={formData.section}
                         onChange={(e) => setFormData({ ...formData, section: e.target.value })}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">Adviser</label>
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                        Adviser
+                        <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                      </label>
                       <input
                         type="text" placeholder="e.g. Mr. Santos"
                         value={formData.adviser}
@@ -694,6 +797,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                       <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
                       {isEditingReview && key === "date" ? (
                         <input type="date" value={formData.date}
+                          max={getTodayDateString()}
                           onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                           className="w-full bg-surface-container border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
                         />
@@ -732,8 +836,9 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                 </div>
                 <div className="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-3">
                   {[
-                    { label: "First name", key: "firstName" },
                     { label: "Last name", key: "lastName" },
+                    { label: "First name", key: "firstName" },
+                    { label: "Middle initial", key: "middleInitial" },
                     { label: "Grade level", key: "level" },
                     { label: "Section", key: "section" },
                     { label: "Adviser", key: "adviser" },
@@ -742,6 +847,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
                       <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
                       {isEditingReview ? (
                         <input type="text" value={(formData as any)[key]}
+                          list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
                           onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
@@ -797,8 +903,7 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
             {currentStep < 4 ? (
               <button
                 onClick={handleNext}
-                disabled={currentStep === 1 && !formData.case.trim()}
-                className="px-5 py-2 bg-[#0B1E43] text-white hover:bg-[#0F2451] disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                className="px-5 py-2 bg-[#0B1E43] text-white hover:bg-[#0F2451] font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
               >
                 Continue
                 <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span>
@@ -818,9 +923,16 @@ export default function FileNewCaseModal({ isOpen, onClose }: FileNewCaseModalPr
       </div>
 
       {/* ── Confirm Close Overlay ── */}
+      {toastMessage && (
+        <div className={`fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl transition-[transform,opacity] duration-200 ease-out ${isToastVisible ? "translate-x-0 opacity-100 case-toast-x-enter" : "translate-x-4 opacity-0"}`}>
+          <span className="material-symbols-outlined text-error" style={{ fontSize: 18 }}>error</span>
+          <p className="text-xs font-bold">{toastMessage}</p>
+        </div>
+      )}
+
       {showConfirmClose && (
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-          <div className="bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center">
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6 unsaved-confirm-backdrop-enter">
+          <div className="bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center unsaved-confirm-panel-enter">
             <span className="material-symbols-outlined text-5xl mx-auto" style={{ color: "#d97706" }}>warning</span>
             <div>
               <h3 className="text-base font-bold text-on-surface">Unsaved changes</h3>

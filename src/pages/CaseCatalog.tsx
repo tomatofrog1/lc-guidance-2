@@ -7,6 +7,7 @@ interface CaseRecord {
   id: number;
   first_name: string;
   last_name: string;
+  middle_initial: string;
   level: string;
   section: string;
   date: string;
@@ -179,11 +180,12 @@ export default function CaseCatalog() {
       const q = searchQuery.toLowerCase();
       result = result.filter((c) => {
         const idStr = `#${c.id.toString().padStart(4, "0")}`;
-        const nameStr = `${c.first_name} ${c.last_name}`.toLowerCase();
+        const nameStr = `${c.first_name} ${c.middle_initial} ${c.last_name}`.toLowerCase();
         return (
           idStr.toLowerCase().includes(q) ||
           c.first_name.toLowerCase().includes(q) ||
           c.last_name.toLowerCase().includes(q) ||
+          c.middle_initial.toLowerCase().includes(q) ||
           nameStr.includes(q) ||
           c.case.toLowerCase().includes(q) ||
           (c.adviser && c.adviser.toLowerCase().includes(q))
@@ -482,7 +484,9 @@ export default function CaseCatalog() {
                       );
                     })()}
                   </td>
-                  <td className="p-table-cell-padding font-medium">{caseRecord.first_name} {caseRecord.last_name}</td>
+                  <td className="p-table-cell-padding font-medium">
+                    {caseRecord.last_name}, {caseRecord.first_name}{caseRecord.middle_initial ? ` ${caseRecord.middle_initial}.` : ""}
+                  </td>
                   <td className="p-table-cell-padding">
                     <span className="bg-surface-container-high px-2 py-1 rounded text-xs text-on-surface-variant border border-outline-variant">{caseRecord.case}</span>
                   </td>

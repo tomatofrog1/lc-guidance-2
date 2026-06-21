@@ -9,6 +9,7 @@ pub struct CaseRecord {
     pub id: i64,
     pub first_name: String,
     pub last_name: String,
+    pub middle_initial: String,
     pub level: String,
     pub section: String,
     pub date: String,
@@ -25,6 +26,7 @@ fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
         id: row.get("id")?,
         first_name: row.get("first_name")?,
         last_name: row.get("last_name")?,
+        middle_initial: row.get("middle_initial")?,
         level: row.get("level")?,
         section: row.get("section")?,
         date: row.get("date")?,
@@ -46,7 +48,7 @@ pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
     let mut statement = connection
         .prepare(
             r#"
-SELECT id, first_name, last_name, level, section, date, date_filed, adviser, "case", sanction, progress
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", sanction, progress
 FROM cases
 ORDER BY id DESC
 "#,
@@ -67,6 +69,7 @@ pub fn add_case(
     state: State<'_, DbState>,
     first_name: String,
     last_name: String,
+    middle_initial: String,
     level: String,
     section: String,
     date: String,
@@ -82,11 +85,12 @@ pub fn add_case(
         .execute(
             r#"
 INSERT INTO cases (
-  first_name, last_name, level, section, date, date_filed, adviser, "case", sanction, progress
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+  first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", sanction, progress
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
 "#,
             params![
-                first_name, last_name, level, section, date, date_filed, adviser, r#case, sanction, progress
+                first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, sanction,
+                progress
             ],
         )
         .map_err(db_error)?;
@@ -100,6 +104,7 @@ pub fn update_case(
     id: i64,
     first_name: String,
     last_name: String,
+    middle_initial: String,
     level: String,
     section: String,
     date: String,
@@ -117,19 +122,20 @@ pub fn update_case(
 UPDATE cases
 SET first_name = ?1,
     last_name = ?2,
-    level = ?3,
-    section = ?4,
-    date = ?5,
-    date_filed = ?6,
-    adviser = ?7,
-    "case" = ?8,
-    sanction = ?9,
-    progress = ?10
-WHERE id = ?11
+    middle_initial = ?3,
+    level = ?4,
+    section = ?5,
+    date = ?6,
+    date_filed = ?7,
+    adviser = ?8,
+    "case" = ?9,
+    sanction = ?10,
+    progress = ?11
+WHERE id = ?12
 "#,
             params![
-                first_name, last_name, level, section, date, date_filed, adviser, r#case, sanction, progress,
-                id
+                first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, sanction,
+                progress, id
             ],
         )
         .map_err(db_error)?;
@@ -161,7 +167,7 @@ pub fn get_case(state: State<'_, DbState>, id: i64) -> Result<CaseRecord, String
     let case = connection
         .query_row(
             r#"
-SELECT id, first_name, last_name, level, section, date, date_filed, adviser, "case", sanction, progress
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", sanction, progress
 FROM cases
 WHERE id = ?1
 "#,
