@@ -13,6 +13,7 @@ interface CaseRecord {
   date_filed: string;
   adviser: string;
   case: string;
+  description: string;
   sanction: string;
   progress: string;
 }
@@ -88,6 +89,7 @@ export default function CaseDetails() {
     date: "",
     date_filed: "",
     case: "",
+    description: "",
     sanction: "",
     progress: ""
   });
@@ -114,6 +116,7 @@ export default function CaseDetails() {
         date: data.date,
         date_filed: data.date_filed,
         case: data.case,
+        description: data.description,
         sanction: data.sanction,
         progress: data.progress
       });
@@ -216,6 +219,7 @@ export default function CaseDetails() {
         dateFiled: editForm.date_filed,
         adviser: editForm.adviser.trim(),
         case: editForm.case.trim(),
+        description: editForm.description.trim(),
         sanction: editForm.sanction.trim(),
         progress: editForm.progress
       });
@@ -295,6 +299,7 @@ export default function CaseDetails() {
                     date: caseRecord.date,
                     date_filed: caseRecord.date_filed,
                     case: caseRecord.case,
+                    description: caseRecord.description,
                     sanction: caseRecord.sanction,
                     progress: caseRecord.progress
                   });
@@ -487,7 +492,7 @@ export default function CaseDetails() {
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Case Description</label>
+                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Case Type</label>
                 {isEditing ? (
                   <textarea
                     value={editForm.case}
@@ -496,6 +501,21 @@ export default function CaseDetails() {
                   />
                 ) : (
                   <p className="text-sm text-on-surface leading-relaxed text-justify">{caseRecord.case}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Description</label>
+                {isEditing ? (
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full h-24 resize-none"
+                  />
+                ) : (
+                  <p className="text-sm text-on-surface leading-relaxed text-justify whitespace-pre-wrap">
+                    {caseRecord.description || "No description provided."}
+                  </p>
                 )}
               </div>
 

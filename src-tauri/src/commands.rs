@@ -17,6 +17,7 @@ pub struct CaseRecord {
     pub adviser: String,
     #[serde(rename = "case")]
     pub r#case: String,
+    pub description: String,
     pub sanction: String,
     pub progress: String,
 }
@@ -33,6 +34,7 @@ fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
         date_filed: row.get("date_filed")?,
         adviser: row.get("adviser")?,
         r#case: row.get("case")?,
+        description: row.get("description")?,
         sanction: row.get("sanction")?,
         progress: row.get("progress")?,
     })
@@ -48,7 +50,7 @@ pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
     let mut statement = connection
         .prepare(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", sanction, progress
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress
 FROM cases
 ORDER BY id DESC
 "#,
@@ -76,6 +78,7 @@ pub fn add_case(
     date_filed: String,
     adviser: String,
     r#case: String,
+    description: String,
     sanction: String,
     progress: String,
 ) -> Result<i64, String> {
@@ -85,12 +88,12 @@ pub fn add_case(
         .execute(
             r#"
 INSERT INTO cases (
-  first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", sanction, progress
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+  first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
 "#,
             params![
-                first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, sanction,
-                progress
+                first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, description,
+                sanction, progress
             ],
         )
         .map_err(db_error)?;
@@ -111,6 +114,7 @@ pub fn update_case(
     date_filed: String,
     adviser: String,
     r#case: String,
+    description: String,
     sanction: String,
     progress: String,
 ) -> Result<(), String> {
@@ -129,13 +133,14 @@ SET first_name = ?1,
     date_filed = ?7,
     adviser = ?8,
     "case" = ?9,
-    sanction = ?10,
-    progress = ?11
-WHERE id = ?12
+    description = ?10,
+    sanction = ?11,
+    progress = ?12
+WHERE id = ?13
 "#,
             params![
-                first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, sanction,
-                progress, id
+                first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, description,
+                sanction, progress, id
             ],
         )
         .map_err(db_error)?;
@@ -167,7 +172,7 @@ pub fn get_case(state: State<'_, DbState>, id: i64) -> Result<CaseRecord, String
     let case = connection
         .query_row(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", sanction, progress
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress
 FROM cases
 WHERE id = ?1
 "#,
