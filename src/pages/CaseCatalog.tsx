@@ -505,7 +505,7 @@ export default function CaseCatalog() {
                 </th>
                 <th className="p-table-cell-padding font-semibold">Student Name</th>
                 <th className="p-table-cell-padding font-semibold">Case Type</th>
-                <th className="p-table-cell-padding font-semibold">Status</th>
+                <th className="p-table-cell-padding font-semibold text-center">Status</th>
                 <th className="p-table-cell-padding font-semibold">Adviser</th>
                 <th className="py-1 px-4 font-semibold text-right"></th>
               </tr>
@@ -567,8 +567,8 @@ export default function CaseCatalog() {
                   <td className="p-table-cell-padding">
                     <span className="text-xs text-on-surface-variant">{caseRecord.case}</span>
                   </td>
-                  <td className="p-table-cell-padding">
-                    <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block`}>{caseRecord.progress}</span>
+                  <td className="p-table-cell-padding text-center">
+                    <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
                   </td>
                   <td className="p-table-cell-padding text-on-surface-variant">
                     {(() => {

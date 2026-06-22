@@ -421,7 +421,7 @@ export default function CaseDetails() {
       </datalist>
 
       {/* Sub-header / Actions matching the design layout */}
-      <div className="flex justify-between items-center mb-4 mt-2">
+      <div className="flex justify-between items-center mb-4 mt-2 print:hidden">
         <span className="font-data-mono text-xs font-semibold bg-surface border border-outline-variant px-3 py-1.5 rounded-lg text-secondary">
           ID: GC-2026-{caseRecord.id.toString().padStart(4, "0")}
         </span>
@@ -468,7 +468,7 @@ export default function CaseDetails() {
       </div>
 
       {/* Main Guidance Card Document */}
-      <div className="bg-[#FAF9F5] dark:bg-surface-container-low border border-outline-variant rounded shadow-[0px_1px_3px_rgba(0,0,0,0.05)] relative overflow-hidden flex flex-col mb-8 print:shadow-none print:border-none print:mb-0">
+      <div className="case-details-document bg-[#FAF9F5] dark:bg-surface-container-low border border-outline-variant rounded shadow-[0px_1px_3px_rgba(0,0,0,0.05)] relative overflow-hidden flex flex-col mb-8 print:mb-0">
         {/* Banner with Laguna College Header */}
         <div className="px-8 py-6 border-b border-outline-variant flex justify-between items-center bg-white dark:bg-surface shrink-0">
           <div className="flex items-center gap-4">
@@ -528,7 +528,7 @@ export default function CaseDetails() {
           {/* Left Column — Student Information */}
           <div className="space-y-4">
             <div className="flex items-center gap-4 mb-4">
-              <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Students Involved</span>
+              <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Student Information</span>
             </div>
 
             {isEditing ? (
@@ -795,20 +795,6 @@ export default function CaseDetails() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Print-Only Proofs Section */}
-      <div className="hidden print:block">
-        {displayedProofs.map((proof, index) => (
-          <div key={`print-${index}`} className="break-before-page w-full min-h-screen flex flex-col items-center justify-center py-8">
-            <h2 className="text-xl font-bold mb-6 text-on-surface">Proof: {proof.name}</h2>
-            <img 
-              src={proof.data} 
-              alt={proof.name} 
-              className="max-w-full max-h-[85vh] object-contain border border-outline-variant shadow-sm" 
-            />
-          </div>
-        ))}
       </div>
 
       {/* Lightbox Modal for Full Image View */}
