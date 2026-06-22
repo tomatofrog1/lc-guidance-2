@@ -3,13 +3,16 @@ import { Link, useLocation } from "react-router-dom";
 interface TopAppBarProps {
   title: string;
   onNewCaseClick?: () => void;
+  isSidebarCollapsed?: boolean;
 }
 
-export default function TopAppBar({ title, onNewCaseClick }: TopAppBarProps) {
+export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = false }: TopAppBarProps) {
   const location = useLocation();
   const isCaseDetails = location.pathname.startsWith("/case/");
   return (
-    <header className="h-16 sticky top-0 bg-surface-bright dark:bg-surface-container border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page ml-sidebar-width min-w-0 z-10 transition-colors duration-150 ease-in-out">
+    <header className={`h-16 sticky top-0 bg-surface-bright dark:bg-surface-container border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page min-w-0 z-10 transition-[background-color,border-color,margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+      isSidebarCollapsed ? "ml-[84px]" : "ml-sidebar-width"
+    }`}>
       <div className="flex items-center gap-4">
         {title !== "Summary & Reports" && title !== "Guidance Office" && (
           <Link to={-1 as any} className="text-secondary hover:text-primary transition-colors duration-500">

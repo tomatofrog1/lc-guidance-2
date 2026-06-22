@@ -159,6 +159,26 @@
     will-change: opacity, transform;
   }
 
+  .modal-backdrop-enter {
+    animation: modal-backdrop-in 180ms ease-out both;
+  }
+
+  .modal-backdrop-exit {
+    animation: modal-backdrop-out 180ms ease-in both;
+  }
+
+  .modal-panel-enter {
+    animation: modal-panel-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: center;
+    will-change: opacity, transform;
+  }
+
+  .modal-panel-exit {
+    animation: modal-panel-out 200ms cubic-bezier(0.55, 0, 0.45, 1) both;
+    transform-origin: center;
+    will-change: opacity, transform;
+  }
+
   .unsaved-confirm-backdrop-enter {
     animation: modal-backdrop-in 180ms ease-out both;
   }
@@ -244,6 +264,21 @@
     box-shadow: 0 1px 3px rgba(31, 41, 55, 0.12);
     transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
+  }
+
+  .nav-active-indicator-collapsed {
+    right: 0;
+    border-left-width: 3px;
+  }
+
+  .sidebar-collapse-icon {
+    transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  .sidebar-collapse-icon-collapsed {
+    transform: rotateY(180deg);
   }
   
   .zebra-row:nth-child(even) {
@@ -403,6 +438,10 @@ body {
 
   .new-case-modal-backdrop-enter,
   .new-case-modal-panel-enter,
+  .modal-backdrop-enter,
+  .modal-backdrop-exit,
+  .modal-panel-enter,
+  .modal-panel-exit,
   .unsaved-confirm-backdrop-enter,
   .unsaved-confirm-backdrop-exit,
   .unsaved-confirm-panel-enter,
@@ -419,6 +458,10 @@ body {
   }
 
   .nav-active-indicator {
+    transition: none;
+  }
+
+  .sidebar-collapse-icon {
     transition: none;
   }
 }

@@ -127,6 +127,7 @@ const PROGRESS_OPTIONS = [
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
 const TEXT_FIELD_LIMIT = 250;
+const MODAL_EXIT_MS = 200;
 const OTHER_CASE_CATEGORY = {
   id: "other",
   label: "Other",
@@ -241,7 +242,11 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
   const [toastMessage, setToastMessage] = useState("");
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const [isConfirmCloseClosing, setIsConfirmCloseClosing] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
+  const [isProofLightboxClosing, setIsProofLightboxClosing] = useState(false);
+  const [deleteProofIndex, setDeleteProofIndex] = useState<number | null>(null);
+  const [isDeleteProofConfirmClosing, setIsDeleteProofConfirmClosing] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<string | null>("behavioural");
   const [removingAdditionalStudents, setRemovingAdditionalStudents] = useState<StudentInfo[]>([]);
   const toastTimerRef = useRef<number | null>(null);
@@ -274,8 +279,37 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
   };
 
   const handleCloseAttempt = () => {
-    if (!isFormEmpty()) setShowConfirmClose(true);
+    if (!isFormEmpty()) {
+      setIsConfirmCloseClosing(false);
+      setShowConfirmClose(true);
+    }
     else onClose();
+  };
+
+  const closeConfirmClose = (afterClose?: () => void) => {
+    setIsConfirmCloseClosing(true);
+    window.setTimeout(() => {
+      setShowConfirmClose(false);
+      setIsConfirmCloseClosing(false);
+      afterClose?.();
+    }, MODAL_EXIT_MS);
+  };
+
+  const closeProofLightbox = () => {
+    setIsProofLightboxClosing(true);
+    window.setTimeout(() => {
+      setSelectedProofUrl(null);
+      setIsProofLightboxClosing(false);
+    }, MODAL_EXIT_MS);
+  };
+
+  const closeDeleteProofConfirm = (afterClose?: () => void) => {
+    setIsDeleteProofConfirmClosing(true);
+    window.setTimeout(() => {
+      setDeleteProofIndex(null);
+      setIsDeleteProofConfirmClosing(false);
+      afterClose?.();
+    }, MODAL_EXIT_MS);
   };
 
   useEffect(() => {
@@ -291,10 +325,15 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
     if (isOpen) {
       setCurrentStep(1);
       setShowConfirmClose(false);
+      setIsConfirmCloseClosing(false);
       setIsEditingReview(false);
       setSubmitError("");
       setToastMessage("");
       setIsToastVisible(false);
+      setSelectedProofUrl(null);
+      setIsProofLightboxClosing(false);
+      setDeleteProofIndex(null);
+      setIsDeleteProofConfirmClosing(false);
       setRemovingAdditionalStudents([]);
       const saved = localStorage.getItem("new_case_draft");
       if (saved) {
@@ -339,9 +378,18 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
     e.target.value = "";
   };
 
-  const handleDeleteProof = (e: React.MouseEvent, index: number) => {
+  const handleDeleteProofRequest = (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
-    setFormData((p) => ({ ...p, uploadedProofs: p.uploadedProofs.filter((_, i) => i !== index) }));
+    setIsDeleteProofConfirmClosing(false);
+    setDeleteProofIndex(index);
+  };
+
+  const confirmDeleteProof = () => {
+    if (deleteProofIndex === null) return;
+    const indexToDelete = deleteProofIndex;
+    closeDeleteProofConfirm(() => {
+      setFormData((p) => ({ ...p, uploadedProofs: p.uploadedProofs.filter((_, i) => i !== indexToDelete) }));
+    });
   };
 
   const handleAddStudent = () => {
@@ -528,12 +576,12 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
   const displayCat = formData.case.trim() ? activeCat ?? OTHER_CASE_CATEGORY : null;
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ease-out ${isOpen ? "opacity-100 new-case-modal-backdrop-enter" : "opacity-0 pointer-events-none"}`}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ease-out ${isOpen ? "opacity-100 new-case-modal-backdrop-enter" : "opacity-0 pointer-events-none modal-backdrop-exit"}`}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseAttempt} />
 
       {/* Panel */}
-      <div className={`relative w-full max-w-[960px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden transition-all duration-200 ease-out ${isOpen ? "translate-y-0 scale-100 opacity-100 new-case-modal-panel-enter" : "translate-y-4 scale-[0.98] opacity-0"}`}>
+      <div className={`relative w-full max-w-[960px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden transition-all duration-200 ease-out ${isOpen ? "translate-y-0 scale-100 opacity-100 new-case-modal-panel-enter" : "translate-y-4 scale-[0.98] opacity-0 modal-panel-exit"}`}>
 
         {/* ── Header ── */}
         <div className="px-7 py-4 bg-surface flex items-center justify-between border-b border-outline-variant shrink-0">
@@ -1003,14 +1051,17 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       <div
                         key={idx}
                         className="group relative rounded-xl overflow-hidden border border-outline-variant cursor-pointer aspect-video bg-surface-container"
-                        onClick={() => setSelectedProofUrl(proof.data)}
+                        onClick={() => {
+                          setIsProofLightboxClosing(false);
+                          setSelectedProofUrl(proof.data);
+                        }}
                       >
                         <img src={proof.data} alt={proof.name} className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300" />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <span className="material-symbols-outlined text-white" style={{ fontSize: 28 }}>zoom_in</span>
                         </div>
                         <button
-                          onClick={(e) => handleDeleteProof(e, idx)}
+                          onClick={(e) => handleDeleteProofRequest(e, idx)}
                           className="absolute top-2 right-2 w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all duration-500 shadow"
                         >
                           <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>delete</span>
@@ -1337,8 +1388,12 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           </div>
         </div>
         {showConfirmClose && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-6 unsaved-confirm-backdrop-enter">
-            <div className="bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center unsaved-confirm-panel-enter">
+          <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-6 ${
+            isConfirmCloseClosing ? "unsaved-confirm-backdrop-exit" : "unsaved-confirm-backdrop-enter"
+          }`}>
+            <div className={`bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
+              isConfirmCloseClosing ? "unsaved-confirm-panel-exit" : "unsaved-confirm-panel-enter"
+            }`}>
               <span className="material-symbols-outlined text-5xl mx-auto" style={{ color: "#d97706" }}>warning</span>
               <div>
                 <h3 className="text-base font-bold text-on-surface">Unsaved changes</h3>
@@ -1350,8 +1405,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 <button
                   onClick={() => {
                     localStorage.setItem("new_case_draft", JSON.stringify(formData));
-                    setShowConfirmClose(false);
-                    onClose();
+                    closeConfirmClose(onClose);
                   }}
                   className="w-full py-2.5 bg-[#0B1E43] text-white font-bold text-xs rounded-xl hover:bg-[#0F2451] transition-all duration-500"
                 >
@@ -1360,15 +1414,14 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 <button
                   onClick={() => {
                     localStorage.removeItem("new_case_draft");
-                    setShowConfirmClose(false);
-                    onClose();
+                    closeConfirmClose(onClose);
                   }}
                   className="w-full py-2.5 border border-red-300 text-red-600 font-bold text-xs rounded-xl hover:bg-red-50 transition-all duration-500"
                 >
                   Discard changes
                 </button>
                 <button
-                  onClick={() => setShowConfirmClose(false)}
+                  onClick={() => closeConfirmClose()}
                   className="w-full py-2.5 border border-outline-variant text-on-surface font-bold text-xs rounded-xl hover:bg-surface-container transition-all duration-500"
                 >
                   Keep editing
@@ -1388,12 +1441,55 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       )}
 
       {/* ── Lightbox ── */}
+      {deleteProofIndex !== null && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${
+              isDeleteProofConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={() => closeDeleteProofConfirm()}
+          />
+          <div className={`relative z-10 bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
+            isDeleteProofConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+          }`}>
+            <span className="material-symbols-outlined text-5xl mx-auto text-error">delete</span>
+            <div>
+              <h3 className="text-base font-bold text-on-surface">Delete attachment?</h3>
+              <p className="text-xs text-secondary mt-1.5 leading-relaxed">
+                This will remove <strong className="text-on-surface font-semibold">{formData.uploadedProofs[deleteProofIndex]?.name ?? "this attachment"}</strong> from the proof list.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => closeDeleteProofConfirm()}
+                className="flex-1 py-2.5 border border-outline-variant text-on-surface font-bold text-xs rounded-xl hover:bg-surface-container transition-colors duration-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteProof}
+                className="flex-1 py-2.5 bg-error text-white font-bold text-xs rounded-xl hover:bg-[#b91c1c] transition-colors duration-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedProofUrl && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={() => setSelectedProofUrl(null)} />
-          <div className="relative z-10 max-w-4xl max-h-[88vh] bg-surface rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+          <div
+            className={`absolute inset-0 bg-black/85 backdrop-blur-sm ${
+              isProofLightboxClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={closeProofLightbox}
+          />
+          <div className={`relative z-10 max-w-4xl max-h-[88vh] bg-surface rounded-2xl shadow-2xl overflow-hidden flex flex-col ${
+            isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
+          }`}>
             <button
-              onClick={() => setSelectedProofUrl(null)}
+              onClick={closeProofLightbox}
               className="absolute top-3 right-3 w-8 h-8 bg-black/60 text-white hover:bg-black rounded-full flex items-center justify-center transition-all duration-500"
             >
               <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 18 }}>close</span>

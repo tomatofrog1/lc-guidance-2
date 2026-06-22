@@ -25,6 +25,7 @@ interface CaseRecord {
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
 const CASES_PER_PAGE = 20;
 const ELLIPSIS = "...";
+const MODAL_EXIT_MS = 200;
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
@@ -140,6 +141,7 @@ export default function CaseCatalog() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [isDeleteConfirmClosing, setIsDeleteConfirmClosing] = useState(false);
   const todayDate = getTodayDateString();
 
   const loadCases = useCallback(async () => {
@@ -335,11 +337,19 @@ export default function CaseCatalog() {
     if (deleteConfirmId === null) return;
     try {
       await invoke("delete_case", { id: deleteConfirmId });
-      setDeleteConfirmId(null);
+      closeDeleteConfirm();
       window.dispatchEvent(new Event("cases:changed"));
     } catch (err) {
       alert("Failed to delete case: " + err);
     }
+  };
+
+  const closeDeleteConfirm = () => {
+    setIsDeleteConfirmClosing(true);
+    window.setTimeout(() => {
+      setDeleteConfirmId(null);
+      setIsDeleteConfirmClosing(false);
+    }, MODAL_EXIT_MS);
   };
 
   return (
@@ -479,19 +489,6 @@ export default function CaseCatalog() {
                 <th className="p-table-cell-padding font-semibold">ID</th>
                 <th 
                   className="p-table-cell-padding font-semibold cursor-pointer select-none group"
-                  onClick={() => handleSort("date")}
-                >
-                  <div className="flex items-center gap-1 text-[11px] tracking-wider uppercase text-secondary">
-                    Incident Date
-                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${
-                      sortBy === "date" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
-                    } ${sortBy === "date" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
-                      arrow_upward
-                    </span>
-                  </div>
-                </th>
-                <th 
-                  className="p-table-cell-padding font-semibold cursor-pointer select-none group"
                   onClick={() => handleSort("date_filed")}
                 >
                   <div className="flex items-center gap-1 text-[11px] tracking-wider uppercase text-secondary">
@@ -499,6 +496,19 @@ export default function CaseCatalog() {
                     <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${
                       sortBy === "date_filed" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
                     } ${sortBy === "date_filed" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
+                      arrow_upward
+                    </span>
+                  </div>
+                </th>
+                <th 
+                  className="p-table-cell-padding font-semibold cursor-pointer select-none group"
+                  onClick={() => handleSort("date")}
+                >
+                  <div className="flex items-center gap-1 text-[11px] tracking-wider uppercase text-secondary">
+                    Incident Date
+                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${
+                      sortBy === "date" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
+                    } ${sortBy === "date" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
                       arrow_upward
                     </span>
                   </div>
@@ -541,7 +551,6 @@ export default function CaseCatalog() {
                   <td className="p-table-cell-padding">
                     <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
                   </td>
-                  <td className="p-table-cell-padding font-bold text-on-surface">{formatIncidentDate(caseRecord.date)}</td>
                   <td className="p-table-cell-padding">
                     {(() => {
                       const rel = formatRelativeFiled(caseRecord.date_filed);
@@ -555,6 +564,7 @@ export default function CaseCatalog() {
                       );
                     })()}
                   </td>
+                  <td className="p-table-cell-padding font-bold text-on-surface">{formatIncidentDate(caseRecord.date)}</td>
                   <td className="p-table-cell-padding font-medium">
                     {(() => {
                       const students = parseStudents(caseRecord.students);
@@ -582,6 +592,7 @@ export default function CaseCatalog() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        setIsDeleteConfirmClosing(false);
                         setDeleteConfirmId(caseRecord.id);
                       }}
                       className="text-secondary hover:text-error transition-all duration-500 p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
@@ -649,11 +660,15 @@ export default function CaseCatalog() {
       {deleteConfirmId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div 
-            className="absolute inset-0 bg-black/45" 
+            className={`absolute inset-0 bg-black/45 ${
+              isDeleteConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
             style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
-            onClick={() => setDeleteConfirmId(null)}
+            onClick={closeDeleteConfirm}
           />
-          <div className="relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant animate-in fade-in zoom-in-95 duration-200">
+          <div className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${
+            isDeleteConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+          }`}>
             <div className="flex items-center gap-3 text-error mb-3">
               <span className="material-symbols-outlined text-[28px]">warning</span>
               <h3 className="text-xl font-bold">Confirm Deletion</h3>
@@ -663,7 +678,7 @@ export default function CaseCatalog() {
             </p>
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => setDeleteConfirmId(null)}
+                onClick={closeDeleteConfirm}
                 className="px-4 py-2 rounded-lg font-bold text-sm bg-surface-container hover:bg-surface-container-high transition-colors duration-500 text-on-surface border border-outline-variant"
               >
                 Cancel
