@@ -34,9 +34,9 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
 
   return (
     <div className="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen overflow-x-hidden">
-      <Sidebar />
-      <TopAppBar title={title} onNewCaseClick={() => setIsNewCaseModalOpen(true)} />
-      <main className="ml-sidebar-width min-h-[calc(100vh-64px)] p-margin-page max-w-[1440px] mx-auto flex flex-col gap-gutter pb-12">
+      <div className="print:hidden"><Sidebar /></div>
+      <div className="print:hidden"><TopAppBar title={title} onNewCaseClick={() => setIsNewCaseModalOpen(true)} /></div>
+      <main className="ml-sidebar-width print:ml-0 min-h-[calc(100vh-64px)] print:min-h-0 p-margin-page print:p-0 max-w-[1440px] print:max-w-none mx-auto flex flex-col gap-gutter pb-12 print:pb-0">
         <div key={pageKey} className="page-transition flex flex-col gap-gutter">
           {children}
         </div>

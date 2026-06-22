@@ -491,23 +491,16 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         created_at: proof.created_at ?? dateFiled,
       })));
 
-      for (const student of students) {
-        await invoke<number>("add_case", {
-          firstName: student.firstName,
-          lastName: student.lastName,
-          middleInitial: student.middleInitial,
-          level: student.level,
-          section: student.section,
-          date: normalized.date,
-          dateFiled,
-          adviser: student.adviser,
-          case: normalized.case.trim(),
-          description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
-          sanction: normalized.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
-          progress: normalized.progress,
-          proofs,
-        });
-      }
+      await invoke<number>("add_case", {
+        students: JSON.stringify(students),
+        date: normalized.date,
+        dateFiled,
+        case: normalized.case.trim(),
+        description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
+        sanction: normalized.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
+        progress: normalized.progress,
+        proofs,
+      });
 
       localStorage.removeItem("new_case_draft");
 

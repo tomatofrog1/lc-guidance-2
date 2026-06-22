@@ -7,14 +7,9 @@ use crate::db::DbState;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaseRecord {
     pub id: i64,
-    pub first_name: String,
-    pub last_name: String,
-    pub middle_initial: String,
-    pub level: String,
-    pub section: String,
+    pub students: String,
     pub date: String,
     pub date_filed: String,
-    pub adviser: String,
     #[serde(rename = "case")]
     pub r#case: String,
     pub description: String,
@@ -26,14 +21,9 @@ pub struct CaseRecord {
 fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
     Ok(CaseRecord {
         id: row.get("id")?,
-        first_name: row.get("first_name")?,
-        last_name: row.get("last_name")?,
-        middle_initial: row.get("middle_initial")?,
-        level: row.get("level")?,
-        section: row.get("section")?,
+        students: row.get("students")?,
         date: row.get("date")?,
         date_filed: row.get("date_filed")?,
-        adviser: row.get("adviser")?,
         r#case: row.get("case")?,
         description: row.get("description")?,
         sanction: row.get("sanction")?,
@@ -52,7 +42,7 @@ pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
     let mut statement = connection
         .prepare(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs
+SELECT id, students, date, date_filed, "case", description, sanction, progress, proofs
 FROM cases
 ORDER BY id DESC
 "#,
@@ -71,14 +61,9 @@ ORDER BY id DESC
 #[tauri::command]
 pub fn add_case(
     state: State<'_, DbState>,
-    first_name: String,
-    last_name: String,
-    middle_initial: String,
-    level: String,
-    section: String,
+    students: String,
     date: String,
     date_filed: String,
-    adviser: String,
     r#case: String,
     description: String,
     sanction: String,
@@ -91,11 +76,11 @@ pub fn add_case(
         .execute(
             r#"
 INSERT INTO cases (
-  first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+  students, date, date_filed, "case", description, sanction, progress, proofs, first_name, last_name, middle_initial, level, section, adviser
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, '', '', '', '', '', '')
 "#,
             params![
-                first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, description,
+                students, date, date_filed, r#case, description,
                 sanction, progress, proofs
             ],
         )
@@ -108,14 +93,9 @@ INSERT INTO cases (
 pub fn update_case(
     state: State<'_, DbState>,
     id: i64,
-    first_name: String,
-    last_name: String,
-    middle_initial: String,
-    level: String,
-    section: String,
+    students: String,
     date: String,
     date_filed: String,
-    adviser: String,
     r#case: String,
     description: String,
     sanction: String,
@@ -128,23 +108,18 @@ pub fn update_case(
         .execute(
             r#"
 UPDATE cases
-SET first_name = ?1,
-    last_name = ?2,
-    middle_initial = ?3,
-    level = ?4,
-    section = ?5,
-    date = ?6,
-    date_filed = ?7,
-    adviser = ?8,
-    "case" = ?9,
-    description = ?10,
-    sanction = ?11,
-    progress = ?12,
-    proofs = ?13
-WHERE id = ?14
+SET students = ?1,
+    date = ?2,
+    date_filed = ?3,
+    "case" = ?4,
+    description = ?5,
+    sanction = ?6,
+    progress = ?7,
+    proofs = ?8
+WHERE id = ?9
 "#,
             params![
-                first_name, last_name, middle_initial, level, section, date, date_filed, adviser, r#case, description,
+                students, date, date_filed, r#case, description,
                 sanction, progress, proofs, id
             ],
         )
@@ -177,7 +152,7 @@ pub fn get_case(state: State<'_, DbState>, id: i64) -> Result<CaseRecord, String
     let case = connection
         .query_row(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs
+SELECT id, students, date, date_filed, "case", description, sanction, progress, proofs
 FROM cases
 WHERE id = ?1
 "#,
