@@ -2,14 +2,18 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 // ── Types ────────────────────────────────────────────────────────────────────
-interface Case {
-  id: number;
-  first_name: string;
-  last_name: string;
-  middle_initial: string;
+interface StudentInfo {
+  firstName: string;
+  lastName: string;
+  middleInitial: string;
   level: string;
   section: string;
   adviser: string;
+}
+
+interface Case {
+  id: number;
+  students: string;
   date: string;
   date_filed: string;
   case: string;
@@ -24,6 +28,14 @@ interface ProofItem {
   data: string;
   created_at: string;
 }
+
+const parseStudents = (studentsStr: string): StudentInfo[] => {
+  try {
+    return JSON.parse(studentsStr) || [];
+  } catch (e) {
+    return [];
+  }
+};
 
 const parseProofs = (value: string): ProofItem[] => {
   if (!value) return [];
@@ -175,14 +187,9 @@ export default function PendingCases() {
     try {
       await invoke("update_case", { 
         id: caseRecord.id,
-        firstName: caseRecord.first_name,
-        lastName: caseRecord.last_name,
-        middleInitial: caseRecord.middle_initial,
-        level: caseRecord.level,
-        section: caseRecord.section,
+        students: caseRecord.students,
         date: caseRecord.date,
         dateFiled: caseRecord.date_filed,
-        adviser: caseRecord.adviser,
         case: caseRecord.case,
         description: caseRecord.description,
         sanction: caseRecord.sanction,
@@ -219,13 +226,20 @@ export default function PendingCases() {
   const filteredCases = cases.filter((c) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
+    const students = parseStudents(c.students);
+    const matchesStudent = students.some(s => {
+      const nameStr = `${s.firstName} ${s.middleInitial} ${s.lastName}`.toLowerCase();
+      return s.firstName.toLowerCase().includes(q) ||
+             s.lastName.toLowerCase().includes(q) ||
+             s.middleInitial.toLowerCase().includes(q) ||
+             nameStr.includes(q) ||
+             s.level.toLowerCase().includes(q) ||
+             s.section.toLowerCase().includes(q);
+    });
+
     return (
-      c.first_name.toLowerCase().includes(q) ||
-      c.last_name.toLowerCase().includes(q) ||
-      c.middle_initial.toLowerCase().includes(q) ||
       c.case.toLowerCase().includes(q) ||
-      c.level.toLowerCase().includes(q) ||
-      c.section.toLowerCase().includes(q)
+      matchesStudent
     );
   });
 
@@ -356,7 +370,13 @@ export default function PendingCases() {
                         <div className="flex-1 min-w-0 transition-colors duration-500">
                           <div className="flex items-start justify-between gap-1.5 transition-colors duration-500">
                             <p className="text-sm font-bold text-on-surface truncate flex-1 transition-colors duration-500">
-                              {c.last_name}, {c.first_name}{c.middle_initial ? ` ${c.middle_initial}.` : ""}
+                              {(() => {
+                                const students = parseStudents(c.students);
+                                if (students.length === 0) return "—";
+                                const firstStudent = students[0];
+                                const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
+                                return students.length > 1 ? `${name} (+${students.length - 1} others)` : name;
+                              })()}
                             </p>
                             {indicator && (
                               <span 
@@ -369,13 +389,24 @@ export default function PendingCases() {
                           </div>
                           <p className="text-[11px] text-secondary truncate mt-0.5 transition-colors duration-500">{c.case}</p>
                           <div className="flex items-center gap-1.5 mt-1.5 transition-colors duration-500">
-                            <span className="text-[10px] text-secondary font-medium transition-colors duration-500">{c.level}</span>
-                            {c.section && (
-                              <>
-                                <span className="text-[10px] text-secondary opacity-40 transition-colors duration-500">·</span>
-                                <span className="text-[10px] text-secondary font-medium transition-colors duration-500">{c.section}</span>
-                              </>
-                            )}
+                            <span className="text-[10px] text-secondary font-medium transition-colors duration-500">
+                              {(() => {
+                                const students = parseStudents(c.students);
+                                if (students.length === 0) return "—";
+                                const firstStudent = students[0];
+                                return firstStudent.level;
+                              })()}
+                            </span>
+                            {(() => {
+                                const students = parseStudents(c.students);
+                                if (students.length === 0 || !students[0].section) return null;
+                                return (
+                                  <>
+                                    <span className="text-[10px] text-secondary opacity-40 transition-colors duration-500">·</span>
+                                    <span className="text-[10px] text-secondary font-medium transition-colors duration-500">{students[0].section}</span>
+                                  </>
+                                );
+                            })()}
                             <span className="text-[10px] text-secondary opacity-40 ml-auto transition-colors duration-500">{formatDate(c.date)}</span>
                           </div>
                         </div>
@@ -405,10 +436,21 @@ export default function PendingCases() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-xl font-extrabold text-on-surface leading-tight">
-                      {selectedCase.last_name}, {selectedCase.first_name}{selectedCase.middle_initial ? ` ${selectedCase.middle_initial}.` : ""}
+                      {(() => {
+                        const students = parseStudents(selectedCase.students);
+                        if (students.length === 0) return "—";
+                        const firstStudent = students[0];
+                        const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
+                        return students.length > 1 ? `${name} (+${students.length - 1} others)` : name;
+                      })()}
                     </h3>
                     <p className="text-sm text-secondary mt-0.5">
-                      {[selectedCase.level, selectedCase.section, selectedCase.adviser && `Adviser: ${selectedCase.adviser}`].filter(Boolean).join(" · ")}
+                      {(() => {
+                        const students = parseStudents(selectedCase.students);
+                        if (students.length === 0) return "";
+                        const firstStudent = students[0];
+                        return [firstStudent.level, firstStudent.section, firstStudent.adviser && `Adviser: ${firstStudent.adviser}`].filter(Boolean).join(" · ");
+                      })()}
                     </p>
                   </div>
                   <span
@@ -460,20 +502,28 @@ export default function PendingCases() {
                 {/* Student info card */}
                 <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden shrink-0">
                   <div className="px-4 py-2.5 border-b border-outline-variant">
-                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Student</p>
+                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Students Involved</p>
                   </div>
-                  <div className="px-4 py-4 grid grid-cols-2 gap-x-6 gap-y-4">
-                    {[
-                      { label: "Full name",    value: `${selectedCase.last_name}, ${selectedCase.first_name}${selectedCase.middle_initial ? ` ${selectedCase.middle_initial}.` : ""}` },
-                      { label: "Grade level",  value: selectedCase.level },
-                      { label: "Section",      value: selectedCase.section },
-                      { label: "Adviser",      value: selectedCase.adviser },
-                    ].map(({ label, value }) => (
-                      <div key={label}>
-                        <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
-                        <p className="text-sm font-bold text-on-surface">{value || "—"}</p>
-                      </div>
-                    ))}
+                  <div className="divide-y divide-outline-variant/50">
+                    {(() => {
+                      const students = parseStudents(selectedCase.students);
+                      if (students.length === 0) return <div className="px-4 py-4 text-sm text-secondary italic">No students recorded.</div>;
+                      return students.map((student, idx) => (
+                        <div key={idx} className="px-4 py-4 grid grid-cols-2 gap-x-6 gap-y-4">
+                          {[
+                            { label: "Full name",    value: `${student.lastName}, ${student.firstName}${student.middleInitial ? ` ${student.middleInitial}.` : ""}` },
+                            { label: "Grade level",  value: student.level },
+                            { label: "Section",      value: student.section },
+                            { label: "Adviser",      value: student.adviser },
+                          ].map(({ label, value }) => (
+                            <div key={label}>
+                              <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
+                              <p className="text-sm font-bold text-on-surface">{value || "—"}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
 
@@ -528,7 +578,7 @@ export default function PendingCases() {
                   <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant">
                     <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#0F6E56" }}>check_circle</span>
                     <p className="text-sm text-on-surface flex-1">
-                      Mark <span className="font-bold">{selectedCase.last_name}, {selectedCase.first_name}{selectedCase.middle_initial ? ` ${selectedCase.middle_initial}.` : ""}</span>'s case as <span className="font-bold">Resolved</span>?
+                      Mark case <span className="font-bold">#{selectedCase.id}</span> as <span className="font-bold">Resolved</span>?
                     </p>
                     <button
                       onClick={() => setConfirmState("idle")}
@@ -556,7 +606,7 @@ export default function PendingCases() {
                   <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant">
                     <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#A32D2D" }}>gavel</span>
                     <p className="text-sm text-on-surface flex-1">
-                      Mark <span className="font-bold">{selectedCase.last_name}, {selectedCase.first_name}{selectedCase.middle_initial ? ` ${selectedCase.middle_initial}.` : ""}</span>'s case as <span className="font-bold">Reprimand</span>?
+                      Mark case <span className="font-bold">#{selectedCase.id}</span> as <span className="font-bold">Reprimand</span>?
                     </p>
                     <button
                       onClick={() => setConfirmState("idle")}

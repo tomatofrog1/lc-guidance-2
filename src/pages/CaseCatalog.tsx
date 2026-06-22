@@ -3,16 +3,20 @@ import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import DatePicker from "../components/DatePicker";
 
-interface CaseRecord {
-  id: number;
-  first_name: string;
-  last_name: string;
-  middle_initial: string;
+interface StudentInfo {
+  firstName: string;
+  lastName: string;
+  middleInitial: string;
   level: string;
   section: string;
+  adviser: string;
+}
+
+interface CaseRecord {
+  id: number;
+  students: string;
   date: string;
   date_filed: string;
-  adviser: string;
   case: string;
   sanction: string;
   progress: string;
@@ -21,6 +25,14 @@ interface CaseRecord {
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
 const CASES_PER_PAGE = 20;
 const ELLIPSIS = "...";
+
+const parseStudents = (studentsStr: string): StudentInfo[] => {
+  try {
+    return JSON.parse(studentsStr) || [];
+  } catch (e) {
+    return [];
+  }
+};
 
 const getTodayDateString = () => {
   const today = new Date();
@@ -172,15 +184,20 @@ export default function CaseCatalog() {
       const q = searchQuery.toLowerCase();
       result = result.filter((c) => {
         const idStr = `#${c.id.toString().padStart(4, "0")}`;
-        const nameStr = `${c.first_name} ${c.middle_initial} ${c.last_name}`.toLowerCase();
+        const students = parseStudents(c.students);
+        const matchesStudent = students.some(s => {
+          const nameStr = `${s.firstName} ${s.middleInitial} ${s.lastName}`.toLowerCase();
+          return s.firstName.toLowerCase().includes(q) ||
+                 s.lastName.toLowerCase().includes(q) ||
+                 s.middleInitial.toLowerCase().includes(q) ||
+                 nameStr.includes(q) ||
+                 (s.adviser && s.adviser.toLowerCase().includes(q));
+        });
+
         return (
           idStr.toLowerCase().includes(q) ||
-          c.first_name.toLowerCase().includes(q) ||
-          c.last_name.toLowerCase().includes(q) ||
-          c.middle_initial.toLowerCase().includes(q) ||
-          nameStr.includes(q) ||
           c.case.toLowerCase().includes(q) ||
-          (c.adviser && c.adviser.toLowerCase().includes(q))
+          matchesStudent
         );
       });
     }
@@ -539,7 +556,13 @@ export default function CaseCatalog() {
                     })()}
                   </td>
                   <td className="p-table-cell-padding font-medium">
-                    {caseRecord.last_name}, {caseRecord.first_name}{caseRecord.middle_initial ? ` ${caseRecord.middle_initial}.` : ""}
+                    {(() => {
+                      const students = parseStudents(caseRecord.students);
+                      if (students.length === 0) return "—";
+                      const firstStudent = students[0];
+                      const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
+                      return students.length > 1 ? <span title={`${students.length} students involved`}>{name} <span className="text-xs text-secondary">(+{students.length - 1} others)</span></span> : name;
+                    })()}
                   </td>
                   <td className="p-table-cell-padding">
                     <span className="text-xs text-on-surface-variant">{caseRecord.case}</span>
@@ -547,7 +570,14 @@ export default function CaseCatalog() {
                   <td className="p-table-cell-padding">
                     <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block`}>{caseRecord.progress}</span>
                   </td>
-                  <td className="p-table-cell-padding text-on-surface-variant">{caseRecord.adviser}</td>
+                  <td className="p-table-cell-padding text-on-surface-variant">
+                    {(() => {
+                      const students = parseStudents(caseRecord.students);
+                      if (students.length === 0) return "—";
+                      const firstStudent = students[0];
+                      return students.length > 1 ? `${firstStudent.adviser} (+${students.length - 1} others)` : firstStudent.adviser;
+                    })()}
+                  </td>
                   <td className="py-1 px-4 text-right">
                     <button
                       onClick={(e) => {

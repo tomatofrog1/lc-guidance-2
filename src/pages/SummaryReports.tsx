@@ -2,22 +2,34 @@ import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 
-interface CaseRecord {
-  id: number;
-  first_name: string;
-  last_name: string;
-  middle_initial: string;
+interface StudentInfo {
+  firstName: string;
+  lastName: string;
+  middleInitial: string;
   level: string;
   section: string;
+  adviser: string;
+}
+
+interface CaseRecord {
+  id: number;
+  students: string;
   date: string;
   date_filed: string;
-  adviser: string;
   case: string;
   sanction: string;
   progress: string;
 }
 
 const formatCaseId = (id: number) => `LC-${id.toString().padStart(4, "0")}`;
+
+const parseStudents = (studentsStr: string): StudentInfo[] => {
+  try {
+    return JSON.parse(studentsStr) || [];
+  } catch (e) {
+    return [];
+  }
+};
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -319,9 +331,22 @@ export default function SummaryReports() {
                   <span className="inline-block px-2 py-1 bg-surface border border-outline-variant rounded-DEFAULT font-data-mono text-data-mono text-secondary">{formatCaseId(caseRecord.id)}</span>
                   <div>
                     <p className="font-body-md text-body-md font-medium text-on-background m-0">
-                      {caseRecord.last_name}, {caseRecord.first_name}{caseRecord.middle_initial ? ` ${caseRecord.middle_initial}.` : ""}
+                      {(() => {
+                        const students = parseStudents(caseRecord.students);
+                        if (students.length === 0) return "—";
+                        const firstStudent = students[0];
+                        const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
+                        return students.length > 1 ? `${name} (+${students.length - 1} others)` : name;
+                      })()}
                     </p>
-                    <p className="font-label-caps text-label-caps text-secondary m-0 mt-0.5">{caseRecord.level} • {caseRecord.section}</p>
+                    <p className="font-label-caps text-label-caps text-secondary m-0 mt-0.5">
+                      {(() => {
+                        const students = parseStudents(caseRecord.students);
+                        if (students.length === 0) return "—";
+                        const firstStudent = students[0];
+                        return `${firstStudent.level} • ${firstStudent.section}`;
+                      })()}
+                    </p>
                   </div>
                 </div>
                 <div className="w-1/4">

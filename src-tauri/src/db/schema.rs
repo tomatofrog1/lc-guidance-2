@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS cases (
   description TEXT NOT NULL DEFAULT '',
   sanction   TEXT NOT NULL,
   progress   TEXT NOT NULL DEFAULT 'Pending',
-  proofs     TEXT NOT NULL DEFAULT '[]'
+  proofs     TEXT NOT NULL DEFAULT '[]',
+  students   TEXT NOT NULL DEFAULT '[]'
 );
 "#,
     )?;
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS cases (
     let mut has_middle_initial = false;
     let mut has_description = false;
     let mut has_proofs = false;
+    let mut has_students = false;
     while let Some(row) = rows.next()? {
         let name: String = row.get(1)?;
         if name == "date_filed" {
@@ -44,6 +46,9 @@ CREATE TABLE IF NOT EXISTS cases (
         if name == "proofs" {
             has_proofs = true;
         }
+        if name == "students" {
+            has_students = true;
+        }
     }
 
     if !has_date_filed {
@@ -51,6 +56,22 @@ CREATE TABLE IF NOT EXISTS cases (
             r#"
 ALTER TABLE cases ADD COLUMN date_filed TEXT NOT NULL DEFAULT '';
 UPDATE cases SET date_filed = date WHERE date_filed = '';
+"#,
+        )?;
+    }
+
+    if !has_students {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN students TEXT NOT NULL DEFAULT '[]';
+UPDATE cases SET students = json_array(json_object(
+  'firstName', first_name,
+  'lastName', last_name,
+  'middleInitial', middle_initial,
+  'level', level,
+  'section', section,
+  'adviser', adviser
+)) WHERE students = '[]';
 "#,
         )?;
     }
