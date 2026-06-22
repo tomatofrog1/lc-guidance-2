@@ -41,6 +41,7 @@ interface ProofItem {
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
 const TEXT_FIELD_LIMIT = 250;
+const MODAL_EXIT_MS = 200;
 const CASE_TYPE_OPTIONS = [
   "Poor academic performance",
   "Learning difficulties",
@@ -224,6 +225,9 @@ export default function CaseDetails() {
   // Proofs State
   const [uploadedProofs, setUploadedProofs] = useState<ProofItem[]>([]);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
+  const [isProofLightboxClosing, setIsProofLightboxClosing] = useState(false);
+  const [deleteProofIndex, setDeleteProofIndex] = useState<number | null>(null);
+  const [isDeleteProofConfirmClosing, setIsDeleteProofConfirmClosing] = useState(false);
 
   const resetEditForm = useCallback((record: CaseRecord) => {
     setEditForm({
@@ -246,7 +250,24 @@ export default function CaseDetails() {
       }
       setShowCancelConfirm(false);
       setIsCancelConfirmClosing(false);
-    }, 200);
+    }, MODAL_EXIT_MS);
+  };
+
+  const closeProofLightbox = () => {
+    setIsProofLightboxClosing(true);
+    window.setTimeout(() => {
+      setSelectedProofUrl(null);
+      setIsProofLightboxClosing(false);
+    }, MODAL_EXIT_MS);
+  };
+
+  const closeDeleteProofConfirm = (afterClose?: () => void) => {
+    setIsDeleteProofConfirmClosing(true);
+    window.setTimeout(() => {
+      setDeleteProofIndex(null);
+      setIsDeleteProofConfirmClosing(false);
+      afterClose?.();
+    }, MODAL_EXIT_MS);
   };
 
   // Load Case Record
@@ -333,16 +354,23 @@ export default function CaseDetails() {
   };
 
   // Handle Proof Delete
-  const handleDeleteProof = async (e: React.MouseEvent, index: number) => {
+  const handleDeleteProofRequest = (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
-    try {
-      await saveProofs(uploadedProofs.filter((_, i) => i !== index));
-    } catch (err) {
-      alert("Failed to delete proof: " + err);
-    }
+    setIsDeleteProofConfirmClosing(false);
+    setDeleteProofIndex(index);
   };
 
-
+  const confirmDeleteProof = () => {
+    if (deleteProofIndex === null) return;
+    const indexToDelete = deleteProofIndex;
+    closeDeleteProofConfirm(async () => {
+      try {
+        await saveProofs(uploadedProofs.filter((_, i) => i !== indexToDelete));
+      } catch (err) {
+        alert("Failed to delete proof: " + err);
+      }
+    });
+  };
 
   // Handle Save Edits
   const handleSaveEdits = async () => {
@@ -772,7 +800,10 @@ export default function CaseDetails() {
               <div
                 key={`${proof.name}-${proof.created_at}-${index}`}
                 className="group relative bg-surface border border-outline-variant rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer aspect-video flex items-center justify-center bg-surface-container"
-                onClick={() => setSelectedProofUrl(proof.data)}
+                onClick={() => {
+                  setIsProofLightboxClosing(false);
+                  setSelectedProofUrl(proof.data);
+                }}
               >
                 <img
                   src={proof.data}
@@ -783,7 +814,7 @@ export default function CaseDetails() {
                   <span className="material-symbols-outlined text-white text-3xl">visibility</span>
                 </div>
                 <button
-                  onClick={(e) => handleDeleteProof(e, index)}
+                  onClick={(e) => handleDeleteProofRequest(e, index)}
                   className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all duration-500 shadow-md"
                 >
                   <span className="material-symbols-outlined text-[16px] transition-colors duration-500">delete</span>
@@ -797,16 +828,56 @@ export default function CaseDetails() {
         )}
       </div>
 
+      {deleteProofIndex !== null && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${
+              isDeleteProofConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={() => closeDeleteProofConfirm()}
+          />
+          <div className={`relative z-10 bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
+            isDeleteProofConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+          }`}>
+            <span className="material-symbols-outlined text-5xl mx-auto text-error">delete</span>
+            <div>
+              <h3 className="text-base font-bold text-on-surface">Delete attachment?</h3>
+              <p className="text-xs text-secondary mt-1.5 leading-relaxed">
+                This will permanently remove <strong className="text-on-surface font-semibold">{uploadedProofs[deleteProofIndex]?.name ?? "this attachment"}</strong> from this case record.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => closeDeleteProofConfirm()}
+                className="flex-1 py-2.5 border border-outline-variant text-on-surface font-bold text-xs rounded-xl hover:bg-surface-container transition-colors duration-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteProof}
+                className="flex-1 py-2.5 bg-error text-white font-bold text-xs rounded-xl hover:bg-[#b91c1c] transition-colors duration-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lightbox Modal for Full Image View */}
       {selectedProofUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            onClick={() => setSelectedProofUrl(null)}
+            className={`absolute inset-0 bg-black/80 backdrop-blur-sm ${
+              isProofLightboxClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={closeProofLightbox}
           />
-          <div className="relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface rounded-xl shadow-2xl flex flex-col">
+          <div className={`relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface rounded-xl shadow-2xl flex flex-col ${
+            isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
+          }`}>
             <button
-              onClick={() => setSelectedProofUrl(null)}
+              onClick={closeProofLightbox}
               className="absolute top-3 right-3 bg-black/60 text-white hover:bg-black rounded-full p-2 transition-all duration-500"
             >
               <span className="material-symbols-outlined text-[20px] transition-colors duration-500">close</span>

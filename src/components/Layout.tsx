@@ -10,6 +10,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, title, pageKey }: LayoutProps) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false);
   const [successToastMessage, setSuccessToastMessage] = useState("");
   const [isSuccessToastVisible, setIsSuccessToastVisible] = useState(false);
@@ -34,9 +35,15 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
 
   return (
     <div className="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen overflow-x-hidden">
-      <div className="print:hidden"><Sidebar /></div>
-      <div className="print:hidden"><TopAppBar title={title} onNewCaseClick={() => setIsNewCaseModalOpen(true)} /></div>
-      <main className="ml-sidebar-width print:ml-0 min-h-[calc(100vh-64px)] print:min-h-0 p-margin-page print:p-0 max-w-[1440px] print:max-w-none mx-auto flex flex-col gap-gutter pb-12 print:pb-0">
+      <div className="print:hidden">
+        <Sidebar isCollapsed={isSidebarCollapsed} onCollapsedChange={setIsSidebarCollapsed} />
+      </div>
+      <div className="print:hidden">
+        <TopAppBar title={title} onNewCaseClick={() => setIsNewCaseModalOpen(true)} isSidebarCollapsed={isSidebarCollapsed} />
+      </div>
+      <main className={`print:ml-0 min-h-[calc(100vh-64px)] print:min-h-0 p-margin-page print:p-0 flex flex-col gap-gutter pb-12 print:pb-0 transition-[margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        isSidebarCollapsed ? "ml-[84px]" : "ml-sidebar-width"
+      }`}>
         <div key={pageKey} className="page-transition flex flex-col gap-gutter">
           {children}
         </div>

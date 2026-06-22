@@ -8,6 +8,8 @@ interface BackupRecord {
   filename: string;
 }
 
+const MODAL_EXIT_MS = 200;
+
 export default function Backup() {
   const [backups, setBackups] = useState<BackupRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -17,6 +19,7 @@ export default function Backup() {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [restoringFilename, setRestoringFilename] = useState<string | null>(null);
   const [confirmRestoreFilename, setConfirmRestoreFilename] = useState<string | null>(null);
+  const [isRestoreConfirmClosing, setIsRestoreConfirmClosing] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Settings states from localStorage
@@ -94,6 +97,15 @@ export default function Backup() {
   };
 
   // Restore backup
+  const closeRestoreConfirm = (afterClose?: () => void) => {
+    setIsRestoreConfirmClosing(true);
+    window.setTimeout(() => {
+      setConfirmRestoreFilename(null);
+      setIsRestoreConfirmClosing(false);
+      afterClose?.();
+    }, MODAL_EXIT_MS);
+  };
+
   const handleRestore = async (filename: string) => {
     setConfirmRestoreFilename(null);
     setRestoringFilename(filename);
@@ -240,7 +252,10 @@ export default function Backup() {
                     <td className="px-6 py-4 font-medium text-secondary">{backup.file_size}</td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => setConfirmRestoreFilename(backup.filename)}
+                        onClick={() => {
+                          setIsRestoreConfirmClosing(false);
+                          setConfirmRestoreFilename(backup.filename);
+                        }}
                         disabled={restoringFilename !== null || isBackingUp}
                         className="border border-[#0B1E43] dark:border-[#7f9cf8] text-[#0B1E43] dark:text-[#7f9cf8] hover:bg-[#0B1E43]/5 dark:hover:bg-[#7f9cf8]/10 font-bold py-1 px-4 rounded transition-all duration-500 text-xs active:scale-95 disabled:opacity-50"
                       >
@@ -336,10 +351,14 @@ export default function Backup() {
       {confirmRestoreFilename && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setConfirmRestoreFilename(null)}
+            className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${
+              isRestoreConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={() => closeRestoreConfirm()}
           />
-          <div className="bg-surface dark:bg-surface-container border border-outline-variant max-w-md w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center z-10 animate-fade-in">
+          <div className={`bg-surface dark:bg-surface-container border border-outline-variant max-w-md w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center z-10 ${
+            isRestoreConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+          }`}>
             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/20 text-[#ba1a1a] flex items-center justify-center mx-auto">
               <span className="material-symbols-outlined text-2xl font-bold">warning</span>
             </div>
@@ -353,13 +372,13 @@ export default function Backup() {
             </div>
             <div className="flex gap-3 mt-2">
               <button
-                onClick={() => setConfirmRestoreFilename(null)}
+                onClick={() => closeRestoreConfirm()}
                 className="flex-1 py-2 border border-outline-variant text-on-surface font-bold text-xs rounded-lg hover:bg-surface-container transition-all duration-500"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleRestore(confirmRestoreFilename)}
+                onClick={() => closeRestoreConfirm(() => handleRestore(confirmRestoreFilename))}
                 className="flex-1 py-2 bg-red-600 text-white font-bold text-xs rounded-lg hover:bg-red-700 transition-all duration-500 shadow-sm"
               >
                 Proceed & Restore

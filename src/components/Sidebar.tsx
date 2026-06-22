@@ -2,12 +2,17 @@ import { Link, useLocation } from "react-router-dom";
 import { useDarkMode } from "../hooks/useDarkMode";
 import lcLogo from "../assets/lc-logo.png";
 
-export default function Sidebar() {
+interface SidebarProps {
+  isCollapsed: boolean;
+  onCollapsedChange: (isCollapsed: boolean) => void;
+}
+
+export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps) {
   const location = useLocation();
   const { isDark, toggleDarkMode } = useDarkMode();
 
   const navItems = [
-    { path: "/pending", label: "Pending Cases", icon: "pending_actions", activePaths: ["/pending"] },
+    { path: "/pending", label: "Pending Cases", icon: "hourglass", activePaths: ["/pending"] },
     { path: "/catalog", label: "Case Catalog", icon: "folder_open", activePaths: ["/catalog", "/case"] },
     { path: "/", label: "Summary & Reports", icon: "assessment", activePaths: ["/"] },
     { path: "/backup", label: "Backup", icon: "backup", activePaths: ["/backup"] },
@@ -24,7 +29,9 @@ export default function Sidebar() {
 
   const getLinkClasses = (index: number) => {
     const isActive = index === activeIndex;
-    const baseClasses = "relative z-10 flex h-12 items-center gap-3 px-4 rounded-DEFAULT transition-[color,transform] duration-500 cursor-pointer active:scale-95";
+    const baseClasses = `relative z-10 flex h-12 items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 ${
+      isCollapsed ? "justify-center px-0" : "gap-3 px-4"
+    }`;
 
     if (isActive) {
       return `${baseClasses} text-primary dark:text-on-primary-container font-semibold`;
@@ -38,46 +45,80 @@ export default function Sidebar() {
   };
 
   return (
-    <nav className="w-sidebar-width h-screen fixed left-0 top-0 bg-surface dark:bg-surface-dim border-r border-outline-variant dark:border-on-surface-variant flex flex-col py-stack-md z-20">
-      <div className="px-5 mb-8 mt-4 flex items-center gap-4">
-        <img src={lcLogo} alt="Laguna College Logo" className="w-16 h-16 object-contain shrink-0" />
-        <div className="min-w-0">
+    <nav className={`h-screen fixed left-0 top-0 bg-surface dark:bg-surface-dim border-r border-outline-variant dark:border-on-surface-variant flex flex-col py-stack-md z-20 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+      isCollapsed ? "w-[84px]" : "w-sidebar-width"
+    }`}>
+      <button
+        type="button"
+        onClick={() => onCollapsedChange(!isCollapsed)}
+        aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-expanded={!isCollapsed}
+        className="absolute right-0 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-outline-variant bg-surface text-secondary shadow-sm hover:bg-surface-container-low hover:text-primary active:scale-95 transition-[background-color,color,transform] duration-500"
+      >
+        <span className={`material-symbols-outlined sidebar-collapse-icon ${isCollapsed ? "sidebar-collapse-icon-collapsed" : ""}`} style={{ fontSize: 20 }}>
+          chevron_left
+        </span>
+      </button>
+
+      <div className={`mb-8 mt-4 flex items-center transition-[gap,padding] duration-500 ${
+        isCollapsed ? "justify-center gap-0 px-0" : "gap-4 px-5"
+      }`}>
+        <img src={lcLogo} alt="Laguna College Logo" className={`${isCollapsed ? "w-14 h-14" : "w-16 h-16"} object-contain shrink-0 transition-[width,height] duration-500`} />
+        <div className={`min-w-0 overflow-hidden transition-[opacity,width,transform] duration-300 ${
+          isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[136px] translate-x-0 opacity-100"
+        }`}>
           <h1 className="whitespace-nowrap text-[16px] leading-[18px] text-primary dark:text-primary-fixed-dim font-bold" style={{ fontFamily: "Georgia, serif" }}>Laguna College</h1>
           <p className="font-label-caps text-[11px] text-secondary dark:text-secondary-fixed-dim mt-1.5 tracking-wider leading-none">GUIDANCE OFFICE</p>
         </div>
       </div>
 
-      <div className="relative flex-grow px-4">
+      <div className={`relative flex-grow transition-[padding] duration-500 ${isCollapsed ? "px-3" : "px-4"}`}>
         <div
-          className="nav-active-indicator"
+          className={`nav-active-indicator ${isCollapsed ? "nav-active-indicator-collapsed" : ""}`}
           style={{ transform: `translateY(${activeIndex * 52}px)` }}
         />
         <div className="relative flex flex-col gap-1">
           {navItems.map((item, index) => (
-            <Link key={item.path} to={item.path} className={getLinkClasses(index)}>
+            <Link key={item.path} to={item.path} className={getLinkClasses(index)} title={isCollapsed ? item.label : undefined}>
               <span
-                className="material-symbols-outlined transition-[font-variation-settings] duration-300"
+                className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300"
                 style={{ fontVariationSettings: `'FILL' ${getIconFill(index)}` }}
               >
                 {item.icon}
               </span>
-              <span className="font-body-md text-body-md font-medium">{item.label}</span>
+              <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
+                isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[150px] translate-x-0 opacity-100"
+              }`}>{item.label}</span>
             </Link>
           ))}
         </div>
       </div>
 
-      <div className="mt-auto px-4 flex flex-col gap-1 border-t border-surface-variant pt-4 mx-4">
+      <div className={`mt-auto flex flex-col gap-1 border-t border-surface-variant pt-4 transition-[margin,padding] duration-500 ${
+        isCollapsed ? "mx-3 px-0" : "mx-4 px-4"
+      }`}>
         <button
           onClick={toggleDarkMode}
-          className="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-500 cursor-pointer active:scale-95 w-full text-left"
+          title={isCollapsed ? (isDark ? "Light Mode" : "Dark Mode") : undefined}
+          className={`flex items-center rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-[background-color,color,padding] duration-500 cursor-pointer active:scale-95 w-full text-left ${
+            isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
+          }`}
         >
-          <span className="material-symbols-outlined transition-colors duration-500">{isDark ? "light_mode" : "dark_mode"}</span>
-          <span className="font-body-md text-body-md font-medium transition-colors duration-500">{isDark ? "Light Mode" : "Dark Mode"}</span>
+          <span className="material-symbols-outlined shrink-0 transition-colors duration-500">{isDark ? "light_mode" : "dark_mode"}</span>
+          <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
+            isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[116px] translate-x-0 opacity-100"
+          }`}>{isDark ? "Light Mode" : "Dark Mode"}</span>
         </button>
-        <button className="flex items-center gap-3 px-4 py-3 rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors duration-500 cursor-pointer active:scale-95 w-full text-left">
-          <span className="material-symbols-outlined transition-colors duration-500">account_circle</span>
-          <span className="font-body-md text-body-md font-medium transition-colors duration-500">Counselor Profile</span>
+        <button
+          title={isCollapsed ? "Counselor Profile" : undefined}
+          className={`flex items-center rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-[background-color,color,padding] duration-500 cursor-pointer active:scale-95 w-full text-left ${
+            isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
+          }`}
+        >
+          <span className="material-symbols-outlined shrink-0 transition-colors duration-500">account_circle</span>
+          <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
+            isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[132px] translate-x-0 opacity-100"
+          }`}>Counselor Profile</span>
         </button>
       </div>
     </nav>
