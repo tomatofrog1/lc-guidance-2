@@ -270,8 +270,16 @@ export default function PendingCases() {
       {/* ── Panel header ── */}
       <div className="px-6 py-4 bg-surface border-b border-outline-variant flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#FAEEDA" }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#854F0B" }}>pending_actions</span>
+          <div 
+            className="group w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-500 cursor-pointer active:scale-95" 
+            style={{ background: "#FAEEDA" }}
+          >
+            <span 
+              className="material-symbols-outlined transition-[font-variation-settings] duration-300 group-hover:[font-variation-settings:'FILL'_1]" 
+              style={{ fontSize: 18, color: "#854F0B" }}
+            >
+              pending_actions
+            </span>
           </div>
           <div>
             <p className="text-[10px] font-bold tracking-widest uppercase text-secondary">Action Queue</p>
@@ -489,6 +497,12 @@ export default function PendingCases() {
                           </span>
                         )}
                       </div>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">Description</p>
+                      <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
+                        {selectedCase.description || <span className="italic text-secondary">No description recorded.</span>}
+                      </p>
                     </div>
                     <div className="col-span-2">
                       <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">Sanction / action taken</p>

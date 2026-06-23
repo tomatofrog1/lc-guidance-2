@@ -555,7 +555,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       const autoBackup = localStorage.getItem("backup_settings_auto") !== "false";
       const freq = localStorage.getItem("backup_settings_freq") || "Daily";
       if (autoBackup && freq === "On New Record") {
-        try { await invoke("create_backup"); } catch {}
+        try { await invoke("create_backup", { isManual: false }); } catch {}
       }
 
       window.dispatchEvent(new Event("cases:changed"));

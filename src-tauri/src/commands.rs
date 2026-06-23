@@ -195,47 +195,51 @@ pub struct BackupRecord {
 
 #[tauri::command]
 pub fn get_backups(app: tauri::AppHandle) -> Result<Vec<BackupRecord>, String> {
-    use chrono::{DateTime, Local};
+    use tauri::Manager;
     use std::fs;
 
-    let db_path = crate::db::get_db_path(&app).map_err(|e| e.to_string())?;
-    let db_dir = db_path.parent().ok_or("Database directory not found")?;
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let backup_dir = app_data_dir.join("backups");
 
     let mut backups = Vec::new();
-    if let Ok(entries) = fs::read_dir(db_dir) {
+    if let Ok(entries) = fs::read_dir(backup_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() {
+            if path.is_dir() {
                 if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
-                    if filename.starts_with("guidance_backup_") && filename.ends_with(".db") {
-                        let backup_type = if filename.contains("manual") {
+                    if filename.starts_with("backup_") {
+                        let backup_type = if filename.starts_with("backup_manual_") {
                             "Manual".to_string()
                         } else {
                             "Automatic".to_string()
                         };
 
-                        let date_time = if let Ok(metadata) = entry.metadata() {
-                            if let Ok(modified) = metadata.modified() {
-                                let dt: DateTime<Local> = modified.into();
-                                dt.format("%Y-%m-%d %H:%M").to_string()
-                            } else {
-                                "Unknown".to_string()
+                        let time_part = filename.split('_').skip(2).collect::<Vec<_>>().join("_");
+                        let date_time = if time_part.len() >= 19 {
+                            let mut dt = String::new();
+                            if let Some((date_str, time_str)) = time_part.split_once('_') {
+                                dt = format!("{} {}", date_str, time_str.replace('-', ":"));
+                                dt.truncate(16);
                             }
+                            if dt.is_empty() { time_part.clone() } else { dt }
                         } else {
-                            "Unknown".to_string()
+                            time_part
                         };
 
-                        let file_size = if let Ok(metadata) = entry.metadata() {
-                            let bytes = metadata.len();
-                            if bytes >= 1_073_741_824 {
-                                format!("{:.1} GB", bytes as f64 / 1_073_741_824.0)
-                            } else if bytes >= 1_048_576 {
-                                format!("{:.1} MB", bytes as f64 / 1_048_576.0)
-                            } else {
-                                format!("{:.1} KB", bytes as f64 / 1024.0)
-                            }
+                        let mut size = 0;
+                        if let Ok(db_meta) = fs::metadata(path.join("snapshot.db")) {
+                            size += db_meta.len();
+                        }
+                        if let Ok(csv_meta) = fs::metadata(path.join("snapshot.csv")) {
+                            size += csv_meta.len();
+                        }
+
+                        let file_size = if size >= 1_073_741_824 {
+                            format!("{:.1} GB", size as f64 / 1_073_741_824.0)
+                        } else if size >= 1_048_576 {
+                            format!("{:.1} MB", size as f64 / 1_048_576.0)
                         } else {
-                            "Unknown".to_string()
+                            format!("{:.1} KB", size as f64 / 1024.0)
                         };
 
                         backups.push(BackupRecord {
@@ -250,12 +254,17 @@ pub fn get_backups(app: tauri::AppHandle) -> Result<Vec<BackupRecord>, String> {
         }
     }
 
-    backups.sort_by(|a, b| b.date_time.cmp(&a.date_time));
+    backups.sort_by(|a, b| b.filename.cmp(&a.filename));
     Ok(backups)
 }
 
 #[tauri::command]
-pub fn create_backup(app: tauri::AppHandle) -> Result<(), String> {
+pub fn create_backup(
+    app: tauri::AppHandle,
+    state: State<'_, DbState>,
+    is_manual: Option<bool>,
+) -> Result<(), String> {
+    use tauri::Manager;
     use std::fs;
 
     let db_path = crate::db::get_db_path(&app).map_err(|e| e.to_string())?;
@@ -263,11 +272,22 @@ pub fn create_backup(app: tauri::AppHandle) -> Result<(), String> {
         return Err("Database file does not exist".to_string());
     }
 
-    let db_dir = db_path.parent().ok_or("Database directory not found")?;
-    let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-    let backup_path = db_dir.join(format!("guidance_backup_manual_{now}.db"));
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let backup_dir = app_data_dir.join("backups");
+    fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
 
-    fs::copy(&db_path, &backup_path).map_err(|e| e.to_string())?;
+    let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+    let is_manual = is_manual.unwrap_or(true);
+    let prefix = if is_manual { "backup_manual" } else { "backup_auto" };
+    let folder_name = format!("{}_{}", prefix, now);
+    let current_backup_dir = backup_dir.join(&folder_name);
+    fs::create_dir_all(&current_backup_dir).map_err(|e| e.to_string())?;
+
+    fs::copy(&db_path, current_backup_dir.join("snapshot.db")).map_err(|e| e.to_string())?;
+
+    let connection = state.connection.lock().map_err(db_error)?;
+    crate::db::backup::export_csv(&connection, &current_backup_dir.join("snapshot.csv"))?;
+
     Ok(())
 }
 
@@ -277,14 +297,16 @@ pub fn restore_backup(
     state: State<'_, DbState>,
     filename: String,
 ) -> Result<(), String> {
+    use tauri::Manager;
     use std::fs;
 
     let db_path = crate::db::get_db_path(&app).map_err(|e| e.to_string())?;
-    let db_dir = db_path.parent().ok_or("Database directory not found")?;
-    let backup_path = db_dir.join(&filename);
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let backup_dir = app_data_dir.join("backups");
+    let backup_file = backup_dir.join(&filename).join("snapshot.db");
 
-    if !backup_path.exists() {
-        return Err(format!("Backup file {} does not exist", filename));
+    if !backup_file.exists() {
+        return Err(format!("Backup file snapshot.db does not exist in folder {}", filename));
     }
 
     let mut connection_guard = state.connection.lock().map_err(|_| "Failed to lock database state")?;
@@ -294,12 +316,44 @@ pub fn restore_backup(
     *connection_guard = temp_conn;
 
     // Perform copy
-    fs::copy(&backup_path, &db_path).map_err(|e| e.to_string())?;
+    fs::copy(&backup_file, &db_path).map_err(|e| e.to_string())?;
 
     // Reopen original connection
     let new_conn = crate::db::open_db(&db_path).map_err(|e| e.to_string())?;
     *connection_guard = new_conn;
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn save_file(
+    app: tauri::AppHandle,
+    base64_data: String,
+    filename: String,
+) -> Result<String, String> {
+    use tauri::Manager;
+    use std::fs;
+    use base64::{Engine as _, engine::general_purpose};
+    use tauri_plugin_opener::OpenerExt;
+
+    let download_dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let file_path = download_dir.join(&filename);
+
+    let bytes = general_purpose::STANDARD.decode(base64_data).map_err(|e| e.to_string())?;
+    fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
+
+    let path_str = file_path.to_string_lossy().to_string();
+    let _ = app.opener().open_path(&path_str, None::<&str>);
+
+    Ok(path_str)
+}
+
+#[tauri::command]
+pub fn save_pdf(
+    app: tauri::AppHandle,
+    base64_data: String,
+    filename: String,
+) -> Result<String, String> {
+    save_file(app, base64_data, filename)
 }
 

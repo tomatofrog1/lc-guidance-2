@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 
 interface BackupRecord {
@@ -316,7 +317,6 @@ export default function Backup() {
                   className="w-full appearance-none bg-surface dark:bg-surface-container border border-outline-variant rounded-lg pl-3 pr-10 py-2 font-body-md text-sm text-on-surface cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <option value="On New Record">On New Record</option>
-                  <option value="Hourly">Hourly</option>
                   <option value="Daily">Daily</option>
                   <option value="Weekly">Weekly</option>
                   <option value="Monthly">Monthly</option>
@@ -348,8 +348,8 @@ export default function Backup() {
       </div>
 
       {/* Restore Confirmation Dialog Modal */}
-      {confirmRestoreFilename && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {confirmRestoreFilename && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div
             className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${
               isRestoreConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
@@ -385,7 +385,8 @@ export default function Backup() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

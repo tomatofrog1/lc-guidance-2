@@ -9,12 +9,17 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let db_path = db::get_db_path(app.handle())?;
-
-            #[cfg(not(debug_assertions))]
-            db::backup::run_backup(&db_path)?;
-
             let connection = db::open_db(&db_path)?;
             db::schema::initialize_schema(&connection)?;
+
+            #[cfg(not(debug_assertions))]
+            {
+                let app_data_dir = app.path().app_data_dir()?;
+                let backup_dir = app_data_dir.join("backups");
+                std::fs::create_dir_all(&backup_dir)?;
+                db::backup::run_backup(&db_path, &backup_dir, &connection)?;
+            }
+
             app.manage(db::DbState::new(connection));
 
             Ok(())
@@ -28,7 +33,9 @@ fn main() {
             commands::copy_generated_proof,
             commands::get_backups,
             commands::create_backup,
-            commands::restore_backup
+            commands::restore_backup,
+            commands::save_pdf,
+            commands::save_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
