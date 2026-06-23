@@ -34,7 +34,8 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
   }, []);
 
   return (
-    <div className="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen overflow-x-hidden">
+    <div className="app-shell text-on-background font-body-md text-body-md antialiased min-h-screen overflow-x-hidden">
+      <div className="app-fullscreen-backdrop print:hidden" aria-hidden="true" />
       <div className="print:hidden">
         <Sidebar isCollapsed={isSidebarCollapsed} onCollapsedChange={setIsSidebarCollapsed} />
       </div>

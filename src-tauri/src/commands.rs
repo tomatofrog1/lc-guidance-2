@@ -1,3 +1,4 @@
+use chrono::{Duration, Utc};
 use rusqlite::{params, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -34,6 +35,210 @@ fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
 
 fn db_error(error: impl std::fmt::Display) -> String {
     error.to_string()
+}
+
+fn get_config(connection: &rusqlite::Connection, key: &str) -> Result<Option<String>, String> {
+    connection
+        .query_row("SELECT value FROM app_config WHERE key = ?1", params![key], |row| row.get(0))
+        .optional()
+        .map_err(db_error)
+}
+
+fn require_config(connection: &rusqlite::Connection, key: &str) -> Result<String, String> {
+    get_config(connection, key)?.ok_or_else(|| format!("Missing app setting: {key}"))
+}
+
+fn set_config(connection: &rusqlite::Connection, key: &str, value: &str) -> Result<(), String> {
+    connection
+        .execute(
+            r#"
+INSERT INTO app_config (key, value)
+VALUES (?1, ?2)
+ON CONFLICT(key) DO UPDATE SET value = excluded.value
+"#,
+            params![key, value],
+        )
+        .map_err(db_error)?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn check_setup_complete(state: State<'_, DbState>) -> Result<bool, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    Ok(get_config(&connection, "is_setup_complete")?.as_deref() == Some("true"))
+}
+
+#[tauri::command]
+pub fn complete_setup(
+    state: State<'_, DbState>,
+    pin: String,
+    smtp_email: String,
+    smtp_password: String,
+    recovery_email: String,
+) -> Result<(), String> {
+    crate::auth::validate_pin(&pin)?;
+    if smtp_email.trim().is_empty() || smtp_password.trim().is_empty() || recovery_email.trim().is_empty() {
+        return Err("Email setup fields cannot be empty".to_string());
+    }
+
+    let pin_hash = crate::auth::hash_secret(&pin)?;
+    let connection = state.connection.lock().map_err(db_error)?;
+    set_config(&connection, "app_pin_hash", &pin_hash)?;
+    set_config(&connection, "smtp_email", smtp_email.trim())?;
+    set_config(&connection, "smtp_password", &smtp_password.replace(' ', ""))?;
+    set_config(&connection, "recovery_email", recovery_email.trim())?;
+    set_config(&connection, "is_setup_complete", "true")?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn test_smtp(smtp_email: String, smtp_password: String) -> Result<(), String> {
+    if smtp_email.trim().is_empty() || smtp_password.trim().is_empty() {
+        return Err("Gmail address and App Password are required".to_string());
+    }
+
+    crate::email::send_test_email(smtp_email.trim(), &smtp_password.replace(' ', ""))
+}
+
+#[tauri::command]
+pub fn verify_pin(state: State<'_, DbState>, pin: String) -> Result<bool, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    let hash = require_config(&connection, "app_pin_hash")?;
+    crate::auth::verify_secret(&pin, &hash)
+}
+
+#[tauri::command]
+pub fn request_otp(state: State<'_, DbState>) -> Result<(), String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    let now = Utc::now();
+    let newest_expiry: Option<String> = connection
+        .query_row(
+            "SELECT expires_at FROM otp_tokens WHERE used = 0 ORDER BY id DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(db_error)?;
+
+    if let Some(expires_at) = newest_expiry {
+        if let Ok(expiry) = chrono::DateTime::parse_from_rfc3339(&expires_at) {
+            if expiry.with_timezone(&Utc) > now + Duration::minutes(9) {
+                return Err("Please wait before requesting another code".to_string());
+            }
+        }
+    }
+
+    let code = crate::auth::generate_otp();
+    let code_hash = crate::auth::hash_secret(&code)?;
+    let expires_at = (now + Duration::minutes(10)).to_rfc3339();
+    let smtp_email = require_config(&connection, "smtp_email")?;
+    let smtp_password = require_config(&connection, "smtp_password")?;
+    let recovery_email = require_config(&connection, "recovery_email")?;
+
+    connection
+        .execute("DELETE FROM otp_tokens", [])
+        .map_err(db_error)?;
+    connection
+        .execute(
+            "INSERT INTO otp_tokens (code_hash, expires_at, used) VALUES (?1, ?2, 0)",
+            params![code_hash, expires_at],
+        )
+        .map_err(db_error)?;
+
+    crate::email::send_otp_email(&smtp_email, &smtp_password, &recovery_email, &code)
+}
+
+#[tauri::command]
+pub fn verify_otp(state: State<'_, DbState>, code: String) -> Result<bool, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    let token: Option<(i64, String, String)> = connection
+        .query_row(
+            "SELECT id, code_hash, expires_at FROM otp_tokens WHERE used = 0 ORDER BY id DESC LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(db_error)?;
+
+    let Some((id, code_hash, expires_at)) = token else {
+        return Err("No active reset code found".to_string());
+    };
+
+    let expiry = chrono::DateTime::parse_from_rfc3339(&expires_at)
+        .map_err(|_| "Reset code is invalid".to_string())?
+        .with_timezone(&Utc);
+    if expiry < Utc::now() {
+        return Err("Reset code has expired".to_string());
+    }
+
+    if crate::auth::verify_secret(&code, &code_hash)? {
+        connection
+            .execute("UPDATE otp_tokens SET used = 1 WHERE id = ?1", params![id])
+            .map_err(db_error)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+pub fn reset_pin(state: State<'_, DbState>, new_pin: String) -> Result<(), String> {
+    crate::auth::validate_pin(&new_pin)?;
+    let connection = state.connection.lock().map_err(db_error)?;
+    let verified_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM otp_tokens WHERE used = 1 ORDER BY id DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(db_error)?;
+
+    if verified_count == 0 {
+        return Err("OTP not verified".to_string());
+    }
+
+    let pin_hash = crate::auth::hash_secret(&new_pin)?;
+    set_config(&connection, "app_pin_hash", &pin_hash)?;
+    connection
+        .execute("DELETE FROM otp_tokens", [])
+        .map_err(db_error)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn change_pin(
+    state: State<'_, DbState>,
+    current_pin: String,
+    new_pin: String,
+) -> Result<(), String> {
+    crate::auth::validate_pin(&new_pin)?;
+    let connection = state.connection.lock().map_err(db_error)?;
+    let current_hash = require_config(&connection, "app_pin_hash")?;
+    if !crate::auth::verify_secret(&current_pin, &current_hash)? {
+        return Err("Current PIN is incorrect".to_string());
+    }
+
+    let next_hash = crate::auth::hash_secret(&new_pin)?;
+    set_config(&connection, "app_pin_hash", &next_hash)
+}
+
+#[tauri::command]
+pub fn update_smtp_config(
+    state: State<'_, DbState>,
+    smtp_email: String,
+    smtp_password: String,
+    recovery_email: String,
+) -> Result<(), String> {
+    if smtp_email.trim().is_empty() || smtp_password.trim().is_empty() || recovery_email.trim().is_empty() {
+        return Err("Email setup fields cannot be empty".to_string());
+    }
+
+    let connection = state.connection.lock().map_err(db_error)?;
+    set_config(&connection, "smtp_email", smtp_email.trim())?;
+    set_config(&connection, "smtp_password", &smtp_password.replace(' ', ""))?;
+    set_config(&connection, "recovery_email", recovery_email.trim())
 }
 
 #[tauri::command]

@@ -9,12 +9,14 @@ interface TopAppBarProps {
 export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = false }: TopAppBarProps) {
   const location = useLocation();
   const isCaseDetails = location.pathname.startsWith("/case/");
+  const showBackButton = isCaseDetails;
+  const showNewCaseButton = location.pathname === "/catalog" || location.pathname === "/pending";
   return (
-    <header className={`h-16 sticky top-0 bg-surface-bright dark:bg-surface-container border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page min-w-0 z-10 transition-[background-color,border-color,margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+    <header className={`app-topbar-surface h-16 sticky top-0 border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page min-w-0 z-10 transition-[background-color,border-color,margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
       isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
     }`}>
       <div className="flex items-center gap-4">
-        {title !== "Summary & Reports" && title !== "Guidance Office" && (
+        {showBackButton && (
           <Link to={-1 as any} className="text-secondary hover:text-primary transition-colors duration-500">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
@@ -36,7 +38,7 @@ export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = 
             <span className="material-symbols-outlined text-secondary absolute right-2 pointer-events-none" style={{ fontSize: '20px' }}>arrow_drop_down</span>
           </div>
         )}
-        {title !== "Summary & Reports" && !isCaseDetails && (
+        {showNewCaseButton && (
           <button onClick={onNewCaseClick} className="bg-primary text-white px-4 py-2 rounded-md font-body-md text-body-md font-medium hover:bg-on-primary-fixed-variant transition-colors duration-500 ml-2">
             + New Case
           </button>

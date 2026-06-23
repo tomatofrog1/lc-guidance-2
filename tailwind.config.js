@@ -42,6 +42,12 @@ export default {
         "xl": "0.75rem",
         "full": "9999px"
       },
+      borderWidth: {
+        "DEFAULT": "2px",
+      },
+      divideWidth: {
+        "DEFAULT": "2px",
+      },
       spacing: {
         "stack-md": "1rem",
         "stack-sm": "0.5rem",

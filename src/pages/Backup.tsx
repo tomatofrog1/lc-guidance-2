@@ -303,7 +303,7 @@ export default function Backup() {
             </div>
           </div>
 
-          <div className="h-[1px] bg-outline-variant/60" />
+          <div className="h-[2px] bg-outline-variant" />
 
           {/* Side-by-side Frequency and Retention Policy */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

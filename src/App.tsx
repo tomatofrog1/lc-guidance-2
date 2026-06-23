@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HashRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { invoke } from "@tauri-apps/api/core";
 import Layout from "./components/Layout";
 import SummaryReports from "./pages/SummaryReports";
 import CaseCatalog from "./pages/CaseCatalog";
 import CaseDetails from "./pages/CaseDetails";
 import PendingCases from "./pages/PendingCases";
 import Backup from "./pages/Backup";
+import AccountSettings from "./pages/AccountSettings";
 import SignIn from "./pages/SignIn";
 import "./App.css";
 
@@ -17,6 +19,7 @@ function AppRoutes() {
     if (location.pathname === "/catalog") return "Guidance Office";
     if (location.pathname === "/pending") return "Pending Cases";
     if (location.pathname === "/backup") return "Backup";
+    if (location.pathname === "/account") return "Counselor Account";
     return "Summary & Reports";
   };
 
@@ -28,6 +31,7 @@ function AppRoutes() {
         <Route path="/pending" element={<PendingCases />} />
         <Route path="/case/:id" element={<CaseDetails />} />
         <Route path="/backup" element={<Backup />} />
+        <Route path="/account" element={<AccountSettings />} />
       </Routes>
     </Layout>
   );
@@ -35,9 +39,33 @@ function AppRoutes() {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    invoke<boolean>("check_setup_complete")
+      .then(setIsSetupComplete)
+      .catch(() => setIsSetupComplete(false));
+  }, []);
+
+  if (isSetupComplete === null) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background text-on-surface">
+        <div className="flex items-center gap-3 text-sm font-bold text-secondary">
+          <span className="material-symbols-outlined animate-spin">sync</span>
+          <span>Loading security setup...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
-    return <SignIn onSignIn={() => setIsAuthenticated(true)} />;
+    return (
+      <SignIn
+        isSetupComplete={isSetupComplete}
+        onSetupComplete={() => setIsSetupComplete(true)}
+        onSignIn={() => setIsAuthenticated(true)}
+      />
+    );
   }
 
   return (

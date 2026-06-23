@@ -518,7 +518,7 @@ export default function PendingCases() {
                   <div className="px-4 py-2.5 border-b border-outline-variant">
                     <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Students Involved</p>
                   </div>
-                  <div className="divide-y divide-outline-variant/50">
+                  <div className="divide-y divide-outline-variant">
                     {(() => {
                       const students = parseStudents(selectedCase.students);
                       if (students.length === 0) return <div className="px-4 py-4 text-sm text-secondary italic">No students recorded.</div>;
