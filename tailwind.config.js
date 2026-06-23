@@ -46,7 +46,7 @@ export default {
         "stack-md": "1rem",
         "stack-sm": "0.5rem",
         "margin-page": "2rem",
-        "sidebar-width": "240px",
+        "sidebar-width": "270px",
         "table-cell-padding": "12px 16px",
         "gutter": "1.5rem"
       },

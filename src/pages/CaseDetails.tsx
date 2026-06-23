@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
+import html2pdf from "html2pdf.js";
 import lcLogo from "../assets/lc-logo.png";
+
 
 interface StudentInfo {
   firstName: string;
@@ -228,6 +230,58 @@ export default function CaseDetails() {
   const [isProofLightboxClosing, setIsProofLightboxClosing] = useState(false);
   const [deleteProofIndex, setDeleteProofIndex] = useState<number | null>(null);
   const [isDeleteProofConfirmClosing, setIsDeleteProofConfirmClosing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPDF = () => {
+    if (!caseRecord || isExporting) return;
+    setIsExporting(true);
+  };
+
+  useEffect(() => {
+    if (!isExporting) return;
+
+    let isMounted = true;
+    const runExport = async () => {
+      const element = document.querySelector(".case-details-document") as HTMLElement;
+      if (!element) {
+        setIsExporting(false);
+        return;
+      }
+
+      const filename = `GC-2026-${caseRecord?.id.toString().padStart(4, "0")}.pdf`;
+      const opt = {
+        margin: [0.5, 0.5] as [number, number],
+        filename,
+        image: { type: "jpeg" as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: "in", format: "letter", orientation: "portrait" as const },
+        pagebreak: { mode: ["css", "legacy"] }
+      };
+
+      try {
+        const pdfBase64 = await html2pdf().from(element).set(opt).outputPdf("datauristring");
+        if (isMounted) {
+          const base64Data = pdfBase64.split(",")[1];
+          await invoke("save_pdf", { base64Data, filename });
+        }
+      } catch (err) {
+        alert("Failed to export PDF: " + err);
+      } finally {
+        if (isMounted) {
+          setIsExporting(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      runExport();
+    }, 300);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [isExporting, caseRecord]);
 
   const resetEditForm = useCallback((record: CaseRecord) => {
     setEditForm({
@@ -477,11 +531,21 @@ export default function CaseDetails() {
           ) : (
             <>
               <button
-                onClick={() => window.print()}
-                className="border border-outline-variant bg-surface text-on-surface font-bold py-2 px-5 rounded flex items-center gap-1.5 hover:bg-surface-container transition-colors duration-500 text-xs print:hidden"
+                onClick={handleExportPDF}
+                disabled={isExporting}
+                className="border border-outline-variant bg-surface text-on-surface font-bold py-2 px-5 rounded flex items-center gap-1.5 hover:bg-surface-container transition-colors duration-500 text-xs print:hidden disabled:opacity-50"
               >
-                <span className="material-symbols-outlined text-sm transition-colors duration-500">picture_as_pdf</span>
-                <span>Export PDF</span>
+                {isExporting ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm transition-colors duration-500 animate-spin">sync</span>
+                    <span>Exporting...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-sm transition-colors duration-500">picture_as_pdf</span>
+                    <span>Export PDF</span>
+                  </>
+                )}
               </button>
               <button
                 onClick={() => setIsEditing(true)}
@@ -535,9 +599,9 @@ export default function CaseDetails() {
                   ))}
                 </div>
               </div>
-            ) : (
+            ) : !isExporting ? (
               <div
-                className={`border-[3px] font-black text-lg px-6 py-1.5 rounded uppercase tracking-widest transform -rotate-[6deg] inline-block select-none ${
+                className={`pdf-status-indicator border-[3px] font-black text-lg px-6 py-1.5 rounded uppercase tracking-widest transform -rotate-[6deg] inline-block select-none ${
                   caseRecord.progress.toLowerCase() === "resolved"
                     ? "border-[#15803d] text-[#15803d] dark:border-[#34A06A]/70 dark:text-[#34A06A]"
                     : caseRecord.progress.toLowerCase() === "reprimand"
@@ -547,7 +611,7 @@ export default function CaseDetails() {
               >
                 {caseRecord.progress}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -767,6 +831,35 @@ export default function CaseDetails() {
             <span className="text-[9px] font-bold text-secondary/65 uppercase tracking-widest">Authorized Signature Area</span>
           </div>
         </div>
+
+        {/* Dynamic PDF Attachments */}
+        {isExporting && displayedProofs.length > 0 && (
+          <div className="pdf-attachments-container border-t border-outline-variant/30 pt-8 mt-4">
+            {displayedProofs.map((proof, idx) => (
+              <div 
+                key={`pdf-page-${idx}`} 
+                style={{ pageBreakBefore: "always", breakBefore: "page" }}
+                className="flex flex-col p-8 bg-[#FAF9F5] dark:bg-surface-container-low min-h-[9.5in] box-border"
+              >
+                <div className="flex justify-between items-center border-b border-outline-variant/50 pb-3 mb-6 w-full">
+                  <h4 className="text-xs font-extrabold text-secondary uppercase tracking-wider">
+                    Attachment {idx + 1}: {proof.name}
+                  </h4>
+                  <span className="text-[10px] text-secondary">
+                    {proof.created_at ? new Date(proof.created_at).toLocaleDateString() : ""}
+                  </span>
+                </div>
+                <div className="flex-1 flex justify-center items-center max-h-[7.5in] w-full">
+                  <img 
+                    src={proof.data} 
+                    alt={proof.name} 
+                    className="max-w-full max-h-[7.2in] object-contain rounded border border-outline-variant shadow-sm"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Attached Proofs Section */}
@@ -918,6 +1011,17 @@ export default function CaseDetails() {
               >
                 Keep editing
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isExporting && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm">
+          <div className="bg-surface border border-outline-variant p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-xs w-full text-center">
+            <span className="material-symbols-outlined text-4xl animate-spin text-primary">sync</span>
+            <div>
+              <h3 className="text-sm font-bold text-on-surface">Generating PDF</h3>
+              <p className="text-xs text-secondary mt-1">This may take a few seconds as we compile page layouts and attachments...</p>
             </div>
           </div>
         </div>

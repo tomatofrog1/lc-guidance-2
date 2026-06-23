@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import DatePicker from "../components/DatePicker";
+import * as XLSX from "xlsx";
 
 interface StudentInfo {
   firstName: string;
@@ -18,6 +19,7 @@ interface CaseRecord {
   date: string;
   date_filed: string;
   case: string;
+  description: string;
   sanction: string;
   progress: string;
 }
@@ -352,10 +354,142 @@ export default function CaseCatalog() {
     }, MODAL_EXIT_MS);
   };
 
+  const handleExportExcel = async () => {
+    if (filteredAndSortedCases.length === 0) {
+      alert("No cases to export.");
+      return;
+    }
+
+    // Determine active filters text
+    const activeFilters: string[] = [];
+    if (searchQuery.trim()) {
+      activeFilters.push(`Search: "${searchQuery.trim()}"`);
+    }
+    if (statusFilter !== "All Statuses") {
+      activeFilters.push(`Status: ${statusFilter}`);
+    }
+    if (startDate || endDate) {
+      const start = startDate ? formatIncidentDate(startDate) : "Any";
+      const end = endDate ? formatIncidentDate(endDate) : "Any";
+      activeFilters.push(`Date: ${start} — ${end}`);
+    }
+    const filterText = activeFilters.join(", ") || "None";
+
+    // Build the sheet data with filter headers at the top
+    const aoaData: any[][] = [
+      ["CASE CATALOG EXPORT"],
+      [`Exported on: ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`],
+      [`Active Filters: ${filterText}`],
+      [], // blank row
+      [
+        "Case ID",
+        "Date Filed",
+        "Incident Date",
+        "Student Name(s)",
+        "Case Type",
+        "Description",
+        "Status",
+        "Adviser(s)",
+        "Sanction"
+      ]
+    ];
+
+    filteredAndSortedCases.forEach((c) => {
+      const students = parseStudents(c.students);
+      const studentNames = students.map(s => `${s.lastName}, ${s.firstName} ${s.middleInitial ? s.middleInitial + '.' : ''}`.trim()).join("; ");
+      const advisers = [...new Set(students.map(s => s.adviser))].filter(Boolean).join("; ");
+
+      aoaData.push([
+        formatCaseId(c.id),
+        formatIncidentDate(c.date_filed),
+        formatIncidentDate(c.date),
+        studentNames,
+        c.case,
+        c.description || "",
+        c.progress,
+        advisers,
+        c.sanction || "None"
+      ]);
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet(aoaData);
+    const workbook = XLSX.utils.book_new();
+
+    // 1. Dynamic Sheet Name (strictly sanitized & <= 31 chars)
+    let sheetName = "Cases";
+    if (activeFilters.length > 0) {
+      const nameParts: string[] = [];
+      if (statusFilter !== "All Statuses") {
+        nameParts.push(statusFilter);
+      }
+      if (startDate || endDate) {
+        const start = startDate ? formatIncidentDate(startDate) : "";
+        const end = endDate ? formatIncidentDate(endDate) : "";
+        if (start && end) nameParts.push(`${start}-${end}`);
+        else if (start) nameParts.push(`From ${start}`);
+        else if (end) nameParts.push(`To ${end}`);
+      }
+      if (searchQuery.trim()) {
+        nameParts.push(searchQuery.trim());
+      }
+      const rawSheetName = nameParts.join(" ").trim();
+      if (rawSheetName) {
+        sheetName = rawSheetName.replace(/[\\/*?[\]:]/g, "").substring(0, 31).trim() || "Cases";
+      }
+    }
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    
+    // Auto-adjust column widths
+    const columnWidths = [
+      { wch: 12 }, // Case ID
+      { wch: 15 }, // Date Filed
+      { wch: 15 }, // Incident Date
+      { wch: 30 }, // Student Name(s)
+      { wch: 25 }, // Case Type
+      { wch: 40 }, // Description
+      { wch: 15 }, // Status
+      { wch: 25 }, // Adviser(s)
+      { wch: 30 }, // Sanction
+    ];
+    worksheet['!cols'] = columnWidths;
+
+    // 2. Dynamic Filename based on filters
+    const filenameParts: string[] = ["cases_export"];
+    if (statusFilter !== "All Statuses") {
+      filenameParts.push(statusFilter.toLowerCase());
+    }
+    if (startDate || endDate) {
+      const start = startDate ? startDate.replace(/-/g, "") : "Any";
+      const end = endDate ? endDate.replace(/-/g, "") : "Any";
+      filenameParts.push(`${start}_to_${end}`);
+    }
+    if (searchQuery.trim()) {
+      filenameParts.push(`search_${searchQuery.trim().replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()}`);
+    }
+    if (filenameParts.length === 1) {
+      filenameParts.push(getTodayDateString());
+    }
+    const filename = `${filenameParts.join("_")}.xlsx`;
+
+    try {
+      const base64Data = XLSX.write(workbook, { bookType: "xlsx", type: "base64" });
+      await invoke("save_file", { base64Data, filename });
+    } catch (err) {
+      alert("Failed to export Excel file: " + err);
+    }
+  };
+
   return (
     <>
-      <div className="flex justify-between items-end">
+      <div className="flex justify-between items-end mb-4">
         <h2 className="font-section-header text-section-header text-on-surface">Case Catalog</h2>
+        <button
+          onClick={handleExportExcel}
+          className="px-4 py-2 bg-[#16a34a] hover:bg-[#15803d] text-white rounded-lg font-bold text-sm transition-colors duration-500 shadow-sm flex items-center gap-2"
+        >
+          <span className="material-symbols-outlined text-[18px]">table_view</span>
+          Export to Excel
+        </button>
       </div>
 
       {/* Stat Cards */}

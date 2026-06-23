@@ -12,7 +12,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
   const { isDark, toggleDarkMode } = useDarkMode();
 
   const navItems = [
-    { path: "/pending", label: "Pending Cases", icon: "hourglass", activePaths: ["/pending"] },
+    { path: "/pending", label: "Pending Cases", icon: "pending_actions", activePaths: ["/pending"] },
     { path: "/catalog", label: "Case Catalog", icon: "folder_open", activePaths: ["/catalog", "/case"] },
     { path: "/", label: "Summary & Reports", icon: "assessment", activePaths: ["/"] },
     { path: "/backup", label: "Backup", icon: "backup", activePaths: ["/backup"] },
@@ -29,7 +29,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
 
   const getLinkClasses = (index: number) => {
     const isActive = index === activeIndex;
-    const baseClasses = `relative z-10 flex h-12 items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 ${
+    const baseClasses = `relative z-10 flex h-12 items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 group ${
       isCollapsed ? "justify-center px-0" : "gap-3 px-4"
     }`;
 
@@ -46,7 +46,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
 
   return (
     <nav className={`h-screen fixed left-0 top-0 bg-surface dark:bg-surface-dim border-r border-outline-variant dark:border-on-surface-variant flex flex-col py-stack-md z-20 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-      isCollapsed ? "w-[84px]" : "w-sidebar-width"
+      isCollapsed ? "w-[84px]" : "w-[280px]"
     }`}>
       <button
         type="button"
@@ -65,7 +65,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
       }`}>
         <img src={lcLogo} alt="Laguna College Logo" className={`${isCollapsed ? "w-14 h-14" : "w-16 h-16"} object-contain shrink-0 transition-[width,height] duration-500`} />
         <div className={`min-w-0 overflow-hidden transition-[opacity,width,transform] duration-300 ${
-          isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[136px] translate-x-0 opacity-100"
+          isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
         }`}>
           <h1 className="whitespace-nowrap text-[16px] leading-[18px] text-primary dark:text-primary-fixed-dim font-bold" style={{ fontFamily: "Georgia, serif" }}>Laguna College</h1>
           <p className="font-label-caps text-[11px] text-secondary dark:text-secondary-fixed-dim mt-1.5 tracking-wider leading-none">GUIDANCE OFFICE</p>
@@ -81,13 +81,13 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
           {navItems.map((item, index) => (
             <Link key={item.path} to={item.path} className={getLinkClasses(index)} title={isCollapsed ? item.label : undefined}>
               <span
-                className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300"
+                className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300 group-hover:[font-variation-settings:'FILL'_1]"
                 style={{ fontVariationSettings: `'FILL' ${getIconFill(index)}` }}
               >
                 {item.icon}
               </span>
               <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
-                isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[150px] translate-x-0 opacity-100"
+                isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
               }`}>{item.label}</span>
             </Link>
           ))}
@@ -106,7 +106,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         >
           <span className="material-symbols-outlined shrink-0 transition-colors duration-500">{isDark ? "light_mode" : "dark_mode"}</span>
           <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
-            isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[116px] translate-x-0 opacity-100"
+            isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
           }`}>{isDark ? "Light Mode" : "Dark Mode"}</span>
         </button>
         <button
@@ -117,7 +117,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         >
           <span className="material-symbols-outlined shrink-0 transition-colors duration-500">account_circle</span>
           <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
-            isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[132px] translate-x-0 opacity-100"
+            isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
           }`}>Counselor Profile</span>
         </button>
       </div>
