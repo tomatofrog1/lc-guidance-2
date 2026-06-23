@@ -1388,7 +1388,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           </div>
         </div>
         {showConfirmClose && (
-          <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-6 ${
+          <div className={`fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-6 ${
             isConfirmCloseClosing ? "unsaved-confirm-backdrop-exit" : "unsaved-confirm-backdrop-enter"
           }`}>
             <div className={`bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${

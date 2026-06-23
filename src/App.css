@@ -66,8 +66,8 @@
     --color-surface-bright: #ffffff;
     --color-on-surface: #1F2937;
     --color-on-surface-variant: #444652;
-    --color-outline: #747683;
-    --color-outline-variant: #c4c6d4;
+    --color-outline: #4b5563;
+    --color-outline-variant: #9ca3af;
     --color-primary: #002F87;
     --color-primary-container: #002f87;
     --color-on-primary: #ffffff;
@@ -75,7 +75,7 @@
     --color-secondary: #585f6c;
     --color-secondary-container: #dce2f3;
     --color-on-secondary-container: #5e6572;
-    --color-surface-variant: #e2e2e2;
+    --color-surface-variant: #cbd5e1;
     --color-error: #ba1a1a;
     --color-error-container: #ffdad6;
     --color-on-error-container: #93000a;
@@ -106,8 +106,8 @@
     --color-surface-bright: #262f3a;
     --color-on-surface: #F3F3F3;
     --color-on-surface-variant: #a4aab4;
-    --color-outline: #586170;
-    --color-outline-variant: #374151;
+    --color-outline: #94a3b8;
+    --color-outline-variant: #64748b;
     --color-primary: #3B5FCB;
     --color-primary-container: #284496;
     --color-on-primary: #ffffff;
@@ -115,7 +115,7 @@
     --color-secondary: #8d95a5;
     --color-secondary-container: #374358;
     --color-on-secondary-container: #ccd4e8;
-    --color-surface-variant: #374151;
+    --color-surface-variant: #64748b;
     --color-error: #ffb4ab;
     --color-error-container: #93000a;
     --color-on-error-container: #ffdad6;
@@ -139,6 +139,50 @@
 }
 
 @layer components {
+  .app-shell {
+    position: relative;
+    isolation: isolate;
+    background: transparent;
+  }
+
+  .app-fullscreen-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 12% 8%, rgba(0, 47, 135, 0.12), transparent 28rem),
+      radial-gradient(circle at 84% 18%, rgba(220, 226, 243, 0.72), transparent 24rem),
+      linear-gradient(135deg, #ffffff 0%, var(--color-background) 44%, #e8edf7 100%);
+  }
+
+  html.dark .app-fullscreen-backdrop {
+    background:
+      radial-gradient(circle at 12% 8%, rgba(59, 95, 203, 0.18), transparent 28rem),
+      radial-gradient(circle at 84% 18%, rgba(55, 67, 88, 0.46), transparent 24rem),
+      linear-gradient(135deg, #151b22 0%, var(--color-background) 48%, #0c1015 100%);
+  }
+
+  .app-sidebar-surface {
+    background-color: rgba(255, 255, 255, 0.88);
+    background-color: color-mix(in srgb, var(--color-surface) 88%, transparent);
+    backdrop-filter: blur(18px) saturate(1.08);
+    -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  }
+
+  .app-topbar-surface {
+    background-color: rgba(255, 255, 255, 0.84);
+    background-color: color-mix(in srgb, var(--color-surface-bright) 84%, transparent);
+    backdrop-filter: blur(18px) saturate(1.08);
+    -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  }
+
+  html.dark .app-sidebar-surface,
+  html.dark .app-topbar-surface {
+    background-color: rgba(27, 33, 40, 0.78);
+    background-color: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  }
+
   .data-card {
     @apply bg-surface border-outline-variant border rounded-lg text-on-surface;
   }
@@ -146,7 +190,7 @@
   .page-transition {
     animation: page-maximize 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
     transform-origin: center top;
-    will-change: opacity, transform, filter;
+    will-change: opacity;
   }
 
   .new-case-modal-backdrop-enter {
@@ -206,7 +250,7 @@
 
   .catalog-page-enter {
     animation: catalog-page-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    will-change: opacity, transform;
+    will-change: opacity;
   }
 
   .additional-student-card {
@@ -317,6 +361,18 @@ body {
   @apply m-0 p-0 transition-colors duration-200;
 }
 
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-caps-lock-indicator {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 @keyframes page-maximize {
   0% {
     opacity: 0;
@@ -330,8 +386,8 @@ body {
 
   100% {
     opacity: 1;
-    transform: scale(1) translateY(0);
-    filter: blur(0);
+    transform: none;
+    filter: none;
   }
 }
 

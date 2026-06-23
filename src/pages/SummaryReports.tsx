@@ -257,10 +257,10 @@ export default function SummaryReports() {
           </div>
           <div className="flex-grow relative w-full min-h-[300px] flex items-end pt-8">
             <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 800 300">
-              <line stroke="#E2E2E2" strokeDasharray="4" strokeWidth="1" x1="0" x2="800" y1="50" y2="50"></line>
-              <line stroke="#E2E2E2" strokeDasharray="4" strokeWidth="1" x1="0" x2="800" y1="125" y2="125"></line>
-              <line stroke="#E2E2E2" strokeDasharray="4" strokeWidth="1" x1="0" x2="800" y1="200" y2="200"></line>
-              <line stroke="#E2E2E2" strokeWidth="1" x1="0" x2="800" y1="275" y2="275"></line>
+              <line stroke="#CBD5E1" strokeDasharray="4" strokeWidth="2" x1="0" x2="800" y1="50" y2="50"></line>
+              <line stroke="#CBD5E1" strokeDasharray="4" strokeWidth="2" x1="0" x2="800" y1="125" y2="125"></line>
+              <line stroke="#CBD5E1" strokeDasharray="4" strokeWidth="2" x1="0" x2="800" y1="200" y2="200"></line>
+              <line stroke="#CBD5E1" strokeWidth="2" x1="0" x2="800" y1="275" y2="275"></line>
               <defs>
                 <linearGradient id="areaGrad" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0%" stopColor="#002f87" stopOpacity="0.2"></stop>

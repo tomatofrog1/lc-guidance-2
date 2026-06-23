@@ -45,7 +45,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
   };
 
   return (
-    <nav className={`h-screen fixed left-0 top-0 bg-surface dark:bg-surface-dim border-r border-outline-variant dark:border-on-surface-variant flex flex-col py-stack-md z-20 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+    <nav className={`app-sidebar-surface h-screen fixed left-0 top-0 border-r border-outline-variant dark:border-on-surface-variant flex flex-col py-stack-md z-20 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
       isCollapsed ? "w-[84px]" : "w-[280px]"
     }`}>
       <button
@@ -109,7 +109,8 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
             isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
           }`}>{isDark ? "Light Mode" : "Dark Mode"}</span>
         </button>
-        <button
+        <Link
+          to="/account"
           title={isCollapsed ? "Counselor Profile" : undefined}
           className={`flex items-center rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-[background-color,color,padding] duration-500 cursor-pointer active:scale-95 w-full text-left ${
             isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
@@ -118,8 +119,8 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
           <span className="material-symbols-outlined shrink-0 transition-colors duration-500">account_circle</span>
           <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
             isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
-          }`}>Counselor Profile</span>
-        </button>
+              }`}>Counselor Profile</span>
+        </Link>
       </div>
     </nav>
   );

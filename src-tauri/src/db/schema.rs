@@ -22,6 +22,18 @@ CREATE TABLE IF NOT EXISTS cases (
   proofs     TEXT NOT NULL DEFAULT '[]',
   students   TEXT NOT NULL DEFAULT '[]'
 );
+
+CREATE TABLE IF NOT EXISTS app_config (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS otp_tokens (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  code_hash  TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used       INTEGER NOT NULL DEFAULT 0
+);
 "#,
     )?;
 

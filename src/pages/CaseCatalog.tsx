@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import DatePicker from "../components/DatePicker";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 interface StudentInfo {
   firstName: string;
@@ -22,6 +22,13 @@ interface CaseRecord {
   description: string;
   sanction: string;
   progress: string;
+  proofs: string;
+}
+
+interface ProofItem {
+  name: string;
+  data: string;
+  created_at: string;
 }
 
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
@@ -33,6 +40,16 @@ const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
     return JSON.parse(studentsStr) || [];
   } catch (e) {
+    return [];
+  }
+};
+
+const parseProofs = (proofsStr: string): ProofItem[] => {
+  if (!proofsStr) return [];
+  try {
+    const parsed = JSON.parse(proofsStr) as ProofItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
     return [];
   }
 };
@@ -57,6 +74,41 @@ const formatIncidentDate = (dateStr: string) => {
     month: "short",
     day: "numeric",
   });
+};
+
+const formatExportDate = (dateStr: string) => {
+  if (!dateStr) return "";
+  const parsed = new Date(dateStr);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return dateStr;
+  }
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const getExcelImageExtension = (dataUrl: string): "jpeg" | "png" | "gif" | null => {
+  const match = dataUrl.match(/^data:image\/(png|jpe?g|gif);base64,/i);
+  if (!match) return null;
+
+  const extension = match[1].toLowerCase();
+  return extension === "jpg" ? "jpeg" : extension as "jpeg" | "png" | "gif";
+};
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+
+  return btoa(binary);
 };
 
 const formatRelativeFiled = (dateStr: string) => {
@@ -324,8 +376,8 @@ export default function CaseCatalog() {
 
   const isFilterModified = 
     searchQuery !== "" || 
-    statusFilter !== "All Statuses" || 
-    startDate !== "" || 
+    statusFilter !== "All Statuses" ||
+    startDate !== "" ||
     endDate !== "";
 
   const resetFilters = () => {
@@ -368,52 +420,13 @@ export default function CaseCatalog() {
     if (statusFilter !== "All Statuses") {
       activeFilters.push(`Status: ${statusFilter}`);
     }
+
     if (startDate || endDate) {
       const start = startDate ? formatIncidentDate(startDate) : "Any";
       const end = endDate ? formatIncidentDate(endDate) : "Any";
-      activeFilters.push(`Date: ${start} — ${end}`);
+      activeFilters.push(`Date: ${start} - ${end}`);
     }
     const filterText = activeFilters.join(", ") || "None";
-
-    // Build the sheet data with filter headers at the top
-    const aoaData: any[][] = [
-      ["CASE CATALOG EXPORT"],
-      [`Exported on: ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`],
-      [`Active Filters: ${filterText}`],
-      [], // blank row
-      [
-        "Case ID",
-        "Date Filed",
-        "Incident Date",
-        "Student Name(s)",
-        "Case Type",
-        "Description",
-        "Status",
-        "Adviser(s)",
-        "Sanction"
-      ]
-    ];
-
-    filteredAndSortedCases.forEach((c) => {
-      const students = parseStudents(c.students);
-      const studentNames = students.map(s => `${s.lastName}, ${s.firstName} ${s.middleInitial ? s.middleInitial + '.' : ''}`.trim()).join("; ");
-      const advisers = [...new Set(students.map(s => s.adviser))].filter(Boolean).join("; ");
-
-      aoaData.push([
-        formatCaseId(c.id),
-        formatIncidentDate(c.date_filed),
-        formatIncidentDate(c.date),
-        studentNames,
-        c.case,
-        c.description || "",
-        c.progress,
-        advisers,
-        c.sanction || "None"
-      ]);
-    });
-
-    const worksheet = XLSX.utils.aoa_to_sheet(aoaData);
-    const workbook = XLSX.utils.book_new();
 
     // 1. Dynamic Sheet Name (strictly sanitized & <= 31 chars)
     let sheetName = "Cases";
@@ -422,6 +435,7 @@ export default function CaseCatalog() {
       if (statusFilter !== "All Statuses") {
         nameParts.push(statusFilter);
       }
+
       if (startDate || endDate) {
         const start = startDate ? formatIncidentDate(startDate) : "";
         const end = endDate ? formatIncidentDate(endDate) : "";
@@ -429,6 +443,7 @@ export default function CaseCatalog() {
         else if (start) nameParts.push(`From ${start}`);
         else if (end) nameParts.push(`To ${end}`);
       }
+
       if (searchQuery.trim()) {
         nameParts.push(searchQuery.trim());
       }
@@ -437,21 +452,6 @@ export default function CaseCatalog() {
         sheetName = rawSheetName.replace(/[\\/*?[\]:]/g, "").substring(0, 31).trim() || "Cases";
       }
     }
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    
-    // Auto-adjust column widths
-    const columnWidths = [
-      { wch: 12 }, // Case ID
-      { wch: 15 }, // Date Filed
-      { wch: 15 }, // Incident Date
-      { wch: 30 }, // Student Name(s)
-      { wch: 25 }, // Case Type
-      { wch: 40 }, // Description
-      { wch: 15 }, // Status
-      { wch: 25 }, // Adviser(s)
-      { wch: 30 }, // Sanction
-    ];
-    worksheet['!cols'] = columnWidths;
 
     // 2. Dynamic Filename based on filters
     const filenameParts: string[] = ["cases_export"];
@@ -463,6 +463,7 @@ export default function CaseCatalog() {
       const end = endDate ? endDate.replace(/-/g, "") : "Any";
       filenameParts.push(`${start}_to_${end}`);
     }
+
     if (searchQuery.trim()) {
       filenameParts.push(`search_${searchQuery.trim().replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()}`);
     }
@@ -472,7 +473,105 @@ export default function CaseCatalog() {
     const filename = `${filenameParts.join("_")}.xlsx`;
 
     try {
-      const base64Data = XLSX.write(workbook, { bookType: "xlsx", type: "base64" });
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "LC Guidance";
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet(sheetName);
+      [12, 22, 22, 32, 25, 42, 15, 28, 30, 36].forEach((width, index) => {
+        worksheet.getColumn(index + 1).width = width;
+      });
+
+      worksheet.addRow(["CASE CATALOG EXPORT"]);
+      worksheet.addRow([`Exported on: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`]);
+      worksheet.addRow([`Active Filters: ${filterText}`]);
+      worksheet.addRow([]);
+
+      const headerRow = worksheet.addRow([
+        "Case ID",
+        "Date Filed",
+        "Incident Date",
+        "Student Name(s)",
+        "Case Type",
+        "Description",
+        "Status",
+        "Adviser(s)",
+        "Sanction",
+        "Proofs",
+      ]);
+
+      worksheet.mergeCells("A1:J1");
+      worksheet.mergeCells("A2:J2");
+      worksheet.mergeCells("A3:J3");
+      worksheet.getRow(1).font = { bold: true, size: 14 };
+      worksheet.getRow(2).font = { italic: true };
+      worksheet.getRow(3).font = { italic: true };
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1E40AF" },
+      };
+
+      filteredAndSortedCases.forEach((c) => {
+        const students = parseStudents(c.students);
+        const proofs = parseProofs(c.proofs);
+        const studentNames = students.map(s => `${s.lastName}, ${s.firstName} ${s.middleInitial ? s.middleInitial + "." : ""}`.trim()).join("; ");
+        const advisers = [...new Set(students.map(s => s.adviser))].filter(Boolean).join("; ");
+        const proofSummary = proofs.length === 0
+          ? "No proofs"
+          : `${proofs.length} proof${proofs.length === 1 ? "" : "s"} embedded below`;
+
+        const caseRow = worksheet.addRow([
+          formatCaseId(c.id),
+          formatExportDate(c.date_filed),
+          formatExportDate(c.date),
+          studentNames,
+          c.case,
+          c.description || "",
+          c.progress,
+          advisers,
+          c.sanction || "None",
+          proofSummary,
+        ]);
+        caseRow.height = 48;
+
+        proofs.forEach((proof, proofIndex) => {
+          const proofRow = worksheet.addRow(["", "", "", "", "", "", "", "", "", proof.name || `Proof ${proofIndex + 1}`]);
+          proofRow.height = 120;
+
+          const extension = getExcelImageExtension(proof.data);
+          if (!extension) {
+            proofRow.getCell(10).value = `Unsupported proof file: ${proof.name || `Proof ${proofIndex + 1}`}`;
+            return;
+          }
+
+          const imageId = workbook.addImage({
+            base64: proof.data,
+            extension,
+          });
+
+          worksheet.addImage(imageId, {
+            tl: { col: 9, row: proofRow.number - 1 },
+            ext: { width: 170, height: 105 },
+          });
+        });
+      });
+
+      worksheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: "top", wrapText: true };
+          cell.border = {
+            top: { style: "thin", color: { argb: "FF9CA3AF" } },
+            left: { style: "thin", color: { argb: "FF9CA3AF" } },
+            bottom: { style: "thin", color: { argb: "FF9CA3AF" } },
+            right: { style: "thin", color: { argb: "FF9CA3AF" } },
+          };
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const base64Data = arrayBufferToBase64(buffer as ArrayBuffer);
       await invoke("save_file", { base64Data, filename });
     } catch (err) {
       alert("Failed to export Excel file: " + err);
@@ -552,9 +651,8 @@ export default function CaseCatalog() {
             </button>
           ))}
 
-          <div className="w-[1px] h-5 bg-outline-variant/60 mx-1"></div>
+          <div className="w-[2px] h-5 bg-outline-variant mx-1"></div>
 
-          {/* Start Date */}
           <DatePicker
             value={startDate}
             onChange={handleStartDateChange}
@@ -563,7 +661,6 @@ export default function CaseCatalog() {
             max={todayDate}
           />
 
-          {/* End Date */}
           <DatePicker
             value={endDate}
             onChange={handleEndDateChange}
@@ -600,7 +697,7 @@ export default function CaseCatalog() {
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-xs text-on-surface">
                 <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '14px' }}>calendar_today</span>
                 <span className="font-medium">
-                  {startDate ? formatIncidentDate(startDate) : "Any"} — {endDate ? formatIncidentDate(endDate) : "Any"}
+                  {startDate ? formatIncidentDate(startDate) : "Any"} - {endDate ? formatIncidentDate(endDate) : "Any"}
                 </span>
                 <button onClick={() => { setStartDate(""); setEndDate(""); }} className="text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors duration-500">
                   <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: '14px' }}>close</span>
@@ -634,17 +731,9 @@ export default function CaseCatalog() {
                     </span>
                   </div>
                 </th>
-                <th 
-                  className="p-table-cell-padding font-semibold cursor-pointer select-none group"
-                  onClick={() => handleSort("date")}
-                >
-                  <div className="flex items-center gap-1 text-[11px] tracking-wider uppercase text-secondary">
+                <th className="p-table-cell-padding font-semibold">
+                  <div className="text-[11px] tracking-wider uppercase text-secondary">
                     Incident Date
-                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${
-                      sortBy === "date" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
-                    } ${sortBy === "date" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
-                      arrow_upward
-                    </span>
                   </div>
                 </th>
                 <th className="p-table-cell-padding font-semibold">Student Name</th>
@@ -831,3 +920,5 @@ export default function CaseCatalog() {
     </>
   );
 }
+
+
