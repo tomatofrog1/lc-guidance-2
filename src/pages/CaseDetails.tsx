@@ -147,6 +147,15 @@ const normalizeSection = (value: string) => {
   return capitalizeWords(cleaned);
 };
 
+const normalizeStudent = (student: StudentInfo): StudentInfo => ({
+  firstName: capitalizeWords(student.firstName),
+  lastName: capitalizeWords(student.lastName),
+  middleInitial: normalizeMiddleInitial(student.middleInitial),
+  level: normalizeGradeLevel(student.level),
+  section: normalizeSection(student.section),
+  adviser: capitalizeWords(student.adviser),
+});
+
 const parseProofs = (value: string): ProofItem[] => {
   if (!value) return [];
   try {
@@ -304,6 +313,31 @@ export default function CaseDetails() {
     });
   }, []);
 
+  const handleEditStudentChange = (index: number, field: keyof StudentInfo, value: string) => {
+    setEditForm((previous) => ({
+      ...previous,
+      students: previous.students.map((student, studentIndex) =>
+        studentIndex === index ? { ...student, [field]: value } : student
+      ),
+    }));
+  };
+
+  const handleEditStudentBlur = (index: number, field: keyof StudentInfo) => {
+    setEditForm((previous) => ({
+      ...previous,
+      students: previous.students.map((student, studentIndex) => {
+        if (studentIndex !== index) return student;
+        if (field === "firstName" || field === "lastName" || field === "adviser") {
+          return { ...student, [field]: capitalizeWords(student[field]) };
+        }
+        if (field === "middleInitial") return { ...student, middleInitial: normalizeMiddleInitial(student.middleInitial) };
+        if (field === "level") return { ...student, level: normalizeGradeLevel(student.level) };
+        if (field === "section") return { ...student, section: normalizeSection(student.section) };
+        return student;
+      }),
+    }));
+  };
+
   const closeCancelConfirm = (discardChanges = false) => {
     setIsCancelConfirmClosing(true);
     window.setTimeout(() => {
@@ -439,17 +473,11 @@ export default function CaseDetails() {
   const handleSaveEdits = async () => {
     if (!caseRecord) return;
     const date = editForm.date > getTodayDateString() ? getTodayDateString() : editForm.date;
+    const normalizedStudents = editForm.students.map(normalizeStudent);
     try {
       await invoke("update_case", {
         id: caseRecord.id,
-        students: JSON.stringify(editForm.students.map(s => ({
-          firstName: capitalizeWords(s.firstName),
-          lastName: capitalizeWords(s.lastName),
-          middleInitial: normalizeMiddleInitial(s.middleInitial),
-          level: normalizeGradeLevel(s.level),
-          section: normalizeSection(s.section),
-          adviser: capitalizeWords(s.adviser),
-        }))),
+        students: JSON.stringify(normalizedStudents),
         date,
         dateFiled: editForm.date_filed,
         case: normalizeCaseType(editForm.case),
@@ -642,22 +670,16 @@ export default function CaseDetails() {
                         type="text"
                         value={student.lastName}
                         placeholder="Last Name"
-                        onChange={(e) => {
-                          const newStudents = [...editForm.students];
-                          newStudents[idx].lastName = e.target.value;
-                          setEditForm({ ...editForm, students: newStudents });
-                        }}
+                        onChange={(e) => handleEditStudentChange(idx, "lastName", e.target.value)}
+                        onBlur={() => handleEditStudentBlur(idx, "lastName")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                       />
                       <input
                         type="text"
                         value={student.firstName}
                         placeholder="First Name"
-                        onChange={(e) => {
-                          const newStudents = [...editForm.students];
-                          newStudents[idx].firstName = e.target.value;
-                          setEditForm({ ...editForm, students: newStudents });
-                        }}
+                        onChange={(e) => handleEditStudentChange(idx, "firstName", e.target.value)}
+                        onBlur={() => handleEditStudentBlur(idx, "firstName")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                       />
                       <input
@@ -665,11 +687,8 @@ export default function CaseDetails() {
                         value={student.middleInitial}
                         placeholder="M.I."
                         maxLength={3}
-                        onChange={(e) => {
-                          const newStudents = [...editForm.students];
-                          newStudents[idx].middleInitial = e.target.value;
-                          setEditForm({ ...editForm, students: newStudents });
-                        }}
+                        onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value)}
+                        onBlur={() => handleEditStudentBlur(idx, "middleInitial")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-16"
                       />
                     </div>
@@ -680,11 +699,9 @@ export default function CaseDetails() {
                       type="text"
                       value={student.level}
                       list="case-details-grade-level-options"
-                      onChange={(e) => {
-                        const newStudents = [...editForm.students];
-                        newStudents[idx].level = e.target.value;
-                        setEditForm({ ...editForm, students: newStudents });
-                      }}
+                      placeholder="e.g. Grade 10"
+                      onChange={(e) => handleEditStudentChange(idx, "level", e.target.value)}
+                      onBlur={() => handleEditStudentBlur(idx, "level")}
                       className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                     />
                   </div>
@@ -694,11 +711,9 @@ export default function CaseDetails() {
                       type="text"
                       value={student.section}
                       list="case-details-section-options"
-                      onChange={(e) => {
-                        const newStudents = [...editForm.students];
-                        newStudents[idx].section = e.target.value;
-                        setEditForm({ ...editForm, students: newStudents });
-                      }}
+                      placeholder="e.g. STEM"
+                      onChange={(e) => handleEditStudentChange(idx, "section", e.target.value)}
+                      onBlur={() => handleEditStudentBlur(idx, "section")}
                       className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                     />
                   </div>
@@ -707,11 +722,9 @@ export default function CaseDetails() {
                     <input
                       type="text"
                       value={student.adviser}
-                      onChange={(e) => {
-                        const newStudents = [...editForm.students];
-                        newStudents[idx].adviser = e.target.value;
-                        setEditForm({ ...editForm, students: newStudents });
-                      }}
+                      placeholder="e.g. Mr. Santos"
+                      onChange={(e) => handleEditStudentChange(idx, "adviser", e.target.value)}
+                      onBlur={() => handleEditStudentBlur(idx, "adviser")}
                       className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                     />
                   </div>

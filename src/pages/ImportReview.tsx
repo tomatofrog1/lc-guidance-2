@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useEffect, useRef } from "react";
 import { useLocation, useNavigate, Navigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -17,6 +17,9 @@ export default function ImportReview() {
   const [rows, setRows] = useState<ImportRow[]>(state.parseResult.rows);
   const [filename] = useState(state.filename);
   const [isImporting, setIsImporting] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [isToastVisible, setIsToastVisible] = useState(false);
+  const toastTimerRef = useRef<number | null>(null);
 
   // Categorize rows based on their status
   const issuesRows = useMemo(() => {
@@ -54,18 +57,41 @@ export default function ImportReview() {
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setIsToastVisible(false);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    window.requestAnimationFrame(() => setIsToastVisible(true));
+    toastTimerRef.current = window.setTimeout(() => {
+      setIsToastVisible(false);
+      window.setTimeout(() => setToastMessage(""), 1000);
+    }, 2800);
+  };
+
   const handleEditStart = (index: number, row: ImportRow) => {
     setEditingRowIndex(index);
     setEditData({
+      id: row.id,
       first_name: row.first_name,
       last_name: row.last_name,
+      middle_initial: row.middle_initial,
       level: row.level,
       section: row.section,
       date: row.date,
+      date_filed: row.date_filed,
       adviser: row.adviser,
       case: row.case,
+      description: row.description,
       sanction: row.sanction,
       progress: row.progress,
+      proofs: row.proofs,
+      students: row.students,
     });
   };
 
@@ -88,7 +114,7 @@ export default function ImportReview() {
       setEditingRowIndex(null);
       setEditData(null);
     } catch (e) {
-      alert(`Validation failed: ${e}`);
+      showToast(`Validation failed: ${e}`);
     } finally {
       setIsSavingRow(false);
     }
@@ -113,10 +139,10 @@ export default function ImportReview() {
         alert(`Successfully imported ${result.inserted_count} records.`);
         navigate("/catalog");
       } else {
-        alert(`Import failed. ${result.failed_count} errors.\n${result.errors.join("\n")}`);
+        showToast(`Import failed. ${result.failed_count} errors. ${result.errors.join(" ")}`);
       }
     } catch (e) {
-      alert(`Batch import failed: ${e}`);
+      showToast(`Batch import failed: ${e}`);
     } finally {
       setIsImporting(false);
     }
@@ -130,6 +156,14 @@ export default function ImportReview() {
 
   return (
     <div className="flex flex-col h-full bg-surface-container-lowest relative overflow-hidden animate-fade-in">
+      {toastMessage && createPortal(
+        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          <span className="material-symbols-outlined text-error" style={{ fontSize: 18 }}>error</span>
+          <p className="text-xs font-bold">{toastMessage}</p>
+        </div>,
+        document.body
+      )}
+
       {/* Header (styled exactly like layout TopAppBar) */}
       <div className="app-topbar-surface h-16 border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page sticky top-0 z-20 shrink-0">
         <div className="flex items-center gap-4">
@@ -446,7 +480,25 @@ export default function ImportReview() {
               {/* Form grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">First Name <span className="text-error font-extrabold">*</span></label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">id</label>
+                  <input
+                    type="text"
+                    value={editData.id}
+                    onChange={e => handleEditChange("id", e.target.value)}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">date_filed</label>
+                  <input
+                    type="text"
+                    value={editData.date_filed}
+                    onChange={e => handleEditChange("date_filed", e.target.value)}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">first_name</label>
                   <input
                     type="text"
                     value={editData.first_name}
@@ -455,7 +507,7 @@ export default function ImportReview() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">Last Name <span className="text-error font-extrabold">*</span></label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">last_name</label>
                   <input
                     type="text"
                     value={editData.last_name}
@@ -464,7 +516,16 @@ export default function ImportReview() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">Grade Level <span className="text-error font-extrabold">*</span></label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">middle_initial</label>
+                  <input
+                    type="text"
+                    value={editData.middle_initial}
+                    onChange={e => handleEditChange("middle_initial", e.target.value)}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">level</label>
                   <input
                     type="text"
                     value={editData.level}
@@ -473,7 +534,7 @@ export default function ImportReview() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">Section <span className="text-error font-extrabold">*</span></label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">section</label>
                   <input
                     type="text"
                     value={editData.section}
@@ -482,16 +543,16 @@ export default function ImportReview() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">Incident Date <span className="text-error font-extrabold">*</span></label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">date</label>
                   <input
-                    type="date"
+                    type="text"
                     value={editData.date}
                     onChange={e => handleEditChange("date", e.target.value)}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">Adviser <span className="text-error font-extrabold">*</span></label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">adviser</label>
                   <input
                     type="text"
                     value={editData.adviser}
@@ -500,7 +561,7 @@ export default function ImportReview() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">Case Type <span className="text-error font-extrabold">*</span></label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">case</label>
                   <input
                     type="text"
                     value={editData.case}
@@ -509,23 +570,48 @@ export default function ImportReview() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">Progress Status <span className="text-error font-extrabold">*</span></label>
-                  <select
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">progress</label>
+                  <input
+                    type="text"
                     value={editData.progress}
                     onChange={e => handleEditChange("progress", e.target.value)}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
-                  >
-                    <option value="Ongoing">Ongoing</option>
-                    <option value="Resolved">Resolved</option>
-                  </select>
+                  />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">Sanction</label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">description</label>
+                  <textarea
+                    rows={3}
+                    value={editData.description}
+                    onChange={e => handleEditChange("description", e.target.value)}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary resize-y"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">sanction</label>
                   <input
                     type="text"
                     value={editData.sanction}
                     onChange={e => handleEditChange("sanction", e.target.value)}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">proofs</label>
+                  <textarea
+                    rows={3}
+                    value={editData.proofs}
+                    onChange={e => handleEditChange("proofs", e.target.value)}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono resize-y"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">students</label>
+                  <textarea
+                    rows={4}
+                    value={editData.students}
+                    onChange={e => handleEditChange("students", e.target.value)}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono resize-y"
                   />
                 </div>
               </div>

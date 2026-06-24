@@ -1,27 +1,48 @@
 use calamine::{open_workbook_auto, Reader, DataType};
-use chrono::NaiveDate;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::env;
 use tauri::State;
 use rust_xlsxwriter::{Workbook, Format};
-use serde_json::json;
 
 use crate::db::DbState;
 use super::{db_error, CaseRecord};
 
+const DB_IMPORT_HEADERS: [&str; 15] = [
+    "id",
+    "first_name",
+    "last_name",
+    "middle_initial",
+    "level",
+    "section",
+    "date",
+    "date_filed",
+    "adviser",
+    "case",
+    "description",
+    "sanction",
+    "progress",
+    "proofs",
+    "students",
+];
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportRow {
+    pub id: String,
     pub first_name: String,
     pub last_name: String,
+    pub middle_initial: String,
     pub level: String,
     pub section: String,
     pub date: String,
+    pub date_filed: String,
     pub adviser: String,
     pub case: String,
+    pub description: String,
     pub sanction: String,
     pub progress: String,
+    pub proofs: String,
+    pub students: String,
     pub is_duplicate: bool,
     pub existing_case: Option<CaseRecord>,
     pub has_errors: bool,
@@ -38,15 +59,21 @@ pub struct ParseFileResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportRowInput {
+    pub id: String,
     pub first_name: String,
     pub last_name: String,
+    pub middle_initial: String,
     pub level: String,
     pub section: String,
     pub date: String,
+    pub date_filed: String,
     pub adviser: String,
     pub case: String,
+    pub description: String,
     pub sanction: String,
     pub progress: String,
+    pub proofs: String,
+    pub students: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,34 +84,80 @@ pub struct BatchImportResult {
     pub errors: Vec<String>,
 }
 
-fn parse_date(date_str: &str) -> Option<String> {
-    let formats = ["%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%B %d, %Y"];
-    for format in formats.iter() {
-        if let Ok(date) = NaiveDate::parse_from_str(date_str, format) {
-            return Some(date.format("%Y-%m-%d").to_string());
+fn cell_to_db_string(cell: Option<&calamine::Data>) -> String {
+    cell.map(|cell| cell.to_string().trim().to_string()).unwrap_or_default()
+}
+
+fn cell_to_date_string(cell: Option<&calamine::Data>) -> String {
+    match cell {
+        Some(cell) => {
+            if let Some(dt) = cell.as_date() {
+                dt.format("%Y-%m-%d").to_string()
+            } else {
+                cell.to_string().trim().to_string()
+            }
+        }
+        None => String::new(),
+    }
+}
+
+fn normalize_id(raw_id: &str) -> Option<String> {
+    let trimmed = raw_id.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Ok(id) = trimmed.parse::<i64>() {
+        return Some(id.to_string());
+    }
+
+    if let Ok(id) = trimmed.parse::<f64>() {
+        if id.is_finite() && id.fract() == 0.0 && id >= 0.0 {
+            return Some((id as i64).to_string());
         }
     }
+
     None
 }
 
-fn map_progress(progress: &str) -> String {
-    let p = progress.to_lowercase();
-    if p.contains("ongoing") {
-        "Ongoing".to_string()
-    } else if p.contains("resolved") {
-        "Resolved".to_string()
-    } else {
-        "Ongoing".to_string()
+fn validate_json_text(value: &str, field_name: &str, errors: &mut Vec<String>) {
+    if value.trim().is_empty() {
+        return;
+    }
+
+    if serde_json::from_str::<serde_json::Value>(value).is_err() {
+        errors.push(format!("{field_name} must be valid JSON"));
     }
 }
 
-fn find_duplicate(connection: &rusqlite::Connection, first_name: &str, last_name: &str, date: &str, case: &str) -> Result<Option<CaseRecord>, String> {
+fn find_duplicate_by_id(connection: &rusqlite::Connection, id: i64) -> Result<Option<CaseRecord>, String> {
     use rusqlite::OptionalExtension;
     connection.query_row(
-        "SELECT * FROM cases WHERE first_name = ?1 AND last_name = ?2 AND date = ?3 AND \"case\" = ?4 LIMIT 1",
-        params![first_name, last_name, date, case],
+        "SELECT * FROM cases WHERE id = ?1 LIMIT 1",
+        params![id],
         super::map_case
     ).optional().map_err(db_error)
+}
+
+fn apply_database_import_validation(connection: &rusqlite::Connection, import_row: &mut ImportRow) {
+    match normalize_id(&import_row.id) {
+        Some(id) => import_row.id = id,
+        None => import_row.errors.push("id is required and must be a whole number".to_string()),
+    }
+
+    validate_json_text(&import_row.proofs, "proofs", &mut import_row.errors);
+    validate_json_text(&import_row.students, "students", &mut import_row.errors);
+
+    import_row.has_errors = !import_row.errors.is_empty();
+
+    if !import_row.has_errors {
+        if let Ok(id) = import_row.id.parse::<i64>() {
+            if let Ok(Some(existing)) = find_duplicate_by_id(connection, id) {
+                import_row.is_duplicate = true;
+                import_row.existing_case = Some(existing);
+            }
+        }
+    }
 }
 
 #[tauri::command]
@@ -99,23 +172,18 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
     let mut rows_iter = range.rows();
     let header_row = rows_iter.next().ok_or("File is empty or missing headers")?;
 
-    let expected_headers = ["first name", "last name", "level", "section", "date", "adviser", "case", "sanction", "progress"];
-    let mut header_map: HashMap<String, usize> = HashMap::new();
+    let actual_headers: Vec<String> = header_row
+        .iter()
+        .map(|cell| cell.to_string().trim().to_string())
+        .collect();
+    let expected_headers = DB_IMPORT_HEADERS.join(", ");
 
-    for (i, cell) in header_row.iter().enumerate() {
-        let h = cell.to_string().to_lowercase().replace("_", " ").trim().to_string();
-        header_map.insert(h, i);
-    }
-
-    let mut missing_headers = Vec::new();
-    for req in expected_headers.iter() {
-        if !header_map.contains_key(*req) {
-            missing_headers.push(*req);
-        }
-    }
-
-    if !missing_headers.is_empty() {
-        return Err(format!("Missing required columns: {}", missing_headers.join(", ")));
+    if actual_headers.len() != DB_IMPORT_HEADERS.len()
+        || actual_headers.iter().zip(DB_IMPORT_HEADERS.iter()).any(|(actual, expected)| actual != expected)
+    {
+        return Err(format!(
+            "Invalid import format. Expected exact database export headers in this order: {expected_headers}"
+        ));
     }
 
     let mut result_rows = Vec::new();
@@ -124,60 +192,36 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
     let mut error_count = 0;
 
     for row in rows_iter {
+        let has_any_value = row
+            .iter()
+            .any(|cell| !cell.to_string().trim().is_empty());
+        if !has_any_value {
+            continue;
+        }
+
         let mut import_row = ImportRow {
-            first_name: row.get(*header_map.get("first name").unwrap()).map(|c| c.to_string().trim().to_string()).unwrap_or_default(),
-            last_name: row.get(*header_map.get("last name").unwrap()).map(|c| c.to_string().trim().to_string()).unwrap_or_default(),
-            level: row.get(*header_map.get("level").unwrap()).map(|c| c.to_string().trim().to_string()).unwrap_or_default(),
-            section: row.get(*header_map.get("section").unwrap()).map(|c| c.to_string().trim().to_string()).unwrap_or_default(),
-            date: "".to_string(),
-            adviser: row.get(*header_map.get("adviser").unwrap()).map(|c| c.to_string().trim().to_string()).unwrap_or_default(),
-            case: row.get(*header_map.get("case").unwrap()).map(|c| c.to_string().trim().to_string()).unwrap_or_default(),
-            sanction: row.get(*header_map.get("sanction").unwrap()).map(|c| c.to_string().trim().to_string()).unwrap_or_default(),
-            progress: row.get(*header_map.get("progress").unwrap()).map(|c| c.to_string().trim().to_string()).unwrap_or_default(),
+            id: cell_to_db_string(row.get(0)),
+            first_name: cell_to_db_string(row.get(1)),
+            last_name: cell_to_db_string(row.get(2)),
+            middle_initial: cell_to_db_string(row.get(3)),
+            level: cell_to_db_string(row.get(4)),
+            section: cell_to_db_string(row.get(5)),
+            date: cell_to_date_string(row.get(6)),
+            date_filed: cell_to_date_string(row.get(7)),
+            adviser: cell_to_db_string(row.get(8)),
+            case: cell_to_db_string(row.get(9)),
+            description: cell_to_db_string(row.get(10)),
+            sanction: cell_to_db_string(row.get(11)),
+            progress: cell_to_db_string(row.get(12)),
+            proofs: cell_to_db_string(row.get(13)),
+            students: cell_to_db_string(row.get(14)),
             is_duplicate: false,
             existing_case: None,
             has_errors: false,
             errors: Vec::new(),
         };
 
-        if import_row.first_name.is_empty() && import_row.last_name.is_empty() && import_row.case.is_empty() {
-            continue;
-        }
-
-        let raw_date = row.get(*header_map.get("date").unwrap());
-        if let Some(cell) = raw_date {
-            if let Some(dt) = cell.as_date() {
-                import_row.date = dt.format("%Y-%m-%d").to_string();
-            } else {
-                let d_str = cell.to_string().trim().to_string();
-                if !d_str.is_empty() {
-                    if let Some(parsed) = parse_date(&d_str) {
-                        import_row.date = parsed;
-                    } else {
-                        import_row.date = d_str;
-                        import_row.errors.push("Invalid date format. Expected YYYY-MM-DD or MM/DD/YYYY".to_string());
-                    }
-                }
-            }
-        }
-
-        import_row.progress = map_progress(&import_row.progress);
-
-        if import_row.first_name.is_empty() { import_row.errors.push("First name is required".to_string()); }
-        if import_row.last_name.is_empty() { import_row.errors.push("Last name is required".to_string()); }
-        if import_row.level.is_empty() { import_row.errors.push("Level is required".to_string()); }
-        if import_row.section.is_empty() { import_row.errors.push("Section is required".to_string()); }
-        if import_row.case.is_empty() { import_row.errors.push("Case is required".to_string()); }
-        if import_row.date.is_empty() { import_row.errors.push("Date is required".to_string()); }
-
-        import_row.has_errors = !import_row.errors.is_empty();
-
-        if !import_row.has_errors {
-            if let Ok(Some(existing)) = find_duplicate(&connection, &import_row.first_name, &import_row.last_name, &import_row.date, &import_row.case) {
-                import_row.is_duplicate = true;
-                import_row.existing_case = Some(existing);
-            }
-        }
+        apply_database_import_validation(&connection, &mut import_row);
 
         if import_row.has_errors {
             error_count += 1;
@@ -208,55 +252,39 @@ pub fn batch_import_cases(state: State<'_, DbState>, rows: Vec<ImportRowInput>) 
     let mut failed_count = 0;
     let mut errors = Vec::new();
 
-    let now = chrono::Local::now().format("%m/%d/%Y").to_string();
-
     {
         let mut stmt = tx.prepare(
             r#"
             INSERT INTO cases (
-                students, date, date_filed, "case", description, sanction, progress, proofs,
-                first_name, last_name, middle_initial, level, section, adviser
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                id, first_name, last_name, middle_initial, level, section, date, date_filed,
+                adviser, "case", description, sanction, progress, proofs, students
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
             "#
         ).map_err(db_error)?;
 
         for (i, row) in rows.iter().enumerate() {
-            if row.first_name.is_empty() || row.last_name.is_empty() || row.date.is_empty() || row.case.is_empty() {
+            let Some(id) = normalize_id(&row.id) else {
                 failed_count += 1;
-                errors.push(format!("Row {}: Missing required fields", i + 1));
+                errors.push(format!("Row {}: id is required and must be a whole number", i + 1));
                 continue;
-            }
-
-            let progress = map_progress(&row.progress);
-
-            // Construct the students JSON array with camelCase properties expected by the frontend
-            let students_val = json!([
-                {
-                    "firstName": row.first_name,
-                    "lastName": row.last_name,
-                    "middleInitial": "",
-                    "level": row.level,
-                    "section": row.section,
-                    "adviser": row.adviser
-                }
-            ]);
-            let students_json = serde_json::to_string(&students_val).unwrap_or_else(|_| "[]".to_string());
+            };
 
             let res = stmt.execute(params![
-                students_json,
-                row.date,
-                now,
-                row.case,
-                "",
-                row.sanction,
-                progress,
-                "[]",
+                id,
                 row.first_name,
                 row.last_name,
-                "",
+                row.middle_initial,
                 row.level,
                 row.section,
-                row.adviser
+                row.date,
+                row.date_filed,
+                row.adviser,
+                row.case,
+                row.description,
+                row.sanction,
+                row.progress,
+                row.proofs,
+                row.students
             ]);
 
             match res {
@@ -300,22 +328,11 @@ pub fn generate_import_template() -> Result<String, String> {
         .set_font_color("#FFFFFF")
         .set_background_color("#002F87");
 
-    let headers = ["First Name", "Last Name", "Level", "Section", "Date", "Adviser", "Case", "Sanction", "Progress"];
-    
-    for (col, header) in headers.iter().enumerate() {
+    let column_widths = [10.0, 18.0, 18.0, 18.0, 16.0, 16.0, 16.0, 22.0, 22.0, 28.0, 42.0, 28.0, 18.0, 48.0, 64.0];
+
+    for (col, header) in DB_IMPORT_HEADERS.iter().enumerate() {
         worksheet.write_string_with_format(0, col as u16, *header, &header_format).map_err(|e| e.to_string())?;
-        worksheet.set_column_width(col as u16, 15.0).map_err(|e| e.to_string())?;
-    }
-
-    let sample_data = [
-        ["Juan", "Dela Cruz", "Grade 7", "St. Peter", "2024-01-15", "Mr. Smith", "Bullying", "Suspension", "Ongoing"],
-        ["Maria", "Clara", "Grade 8", "St. Paul", "2024-02-20", "Ms. Jane", "Cutting Classes", "Warning", "Resolved"],
-    ];
-
-    for (row_idx, row_data) in sample_data.iter().enumerate() {
-        for (col_idx, val) in row_data.iter().enumerate() {
-            worksheet.write_string((row_idx + 1) as u32, col_idx as u16, *val).map_err(|e| e.to_string())?;
-        }
+        worksheet.set_column_width(col as u16, column_widths[col]).map_err(|e| e.to_string())?;
     }
 
     let temp_dir = env::temp_dir();
@@ -331,47 +348,28 @@ pub fn validate_import_row(state: State<'_, DbState>, row: ImportRowInput) -> Re
     let connection = state.connection.lock().map_err(db_error)?;
 
     let mut import_row = ImportRow {
+        id: row.id.trim().to_string(),
         first_name: row.first_name.trim().to_string(),
         last_name: row.last_name.trim().to_string(),
+        middle_initial: row.middle_initial.trim().to_string(),
         level: row.level.trim().to_string(),
         section: row.section.trim().to_string(),
-        date: "".to_string(),
+        date: row.date.trim().to_string(),
+        date_filed: row.date_filed.trim().to_string(),
         adviser: row.adviser.trim().to_string(),
         case: row.case.trim().to_string(),
+        description: row.description.trim().to_string(),
         sanction: row.sanction.trim().to_string(),
         progress: row.progress.trim().to_string(),
+        proofs: row.proofs.trim().to_string(),
+        students: row.students.trim().to_string(),
         is_duplicate: false,
         existing_case: None,
         has_errors: false,
         errors: Vec::new(),
     };
 
-    if !row.date.trim().is_empty() {
-        if let Some(parsed) = parse_date(row.date.trim()) {
-            import_row.date = parsed;
-        } else {
-            import_row.date = row.date.trim().to_string();
-            import_row.errors.push("Invalid date format. Expected YYYY-MM-DD or MM/DD/YYYY".to_string());
-        }
-    }
-
-    import_row.progress = map_progress(&import_row.progress);
-
-    if import_row.first_name.is_empty() { import_row.errors.push("First name is required".to_string()); }
-    if import_row.last_name.is_empty() { import_row.errors.push("Last name is required".to_string()); }
-    if import_row.level.is_empty() { import_row.errors.push("Level is required".to_string()); }
-    if import_row.section.is_empty() { import_row.errors.push("Section is required".to_string()); }
-    if import_row.case.is_empty() { import_row.errors.push("Case is required".to_string()); }
-    if import_row.date.is_empty() { import_row.errors.push("Date is required".to_string()); }
-
-    import_row.has_errors = !import_row.errors.is_empty();
-
-    if !import_row.has_errors {
-        if let Ok(Some(existing)) = find_duplicate(&connection, &import_row.first_name, &import_row.last_name, &import_row.date, &import_row.case) {
-            import_row.is_duplicate = true;
-            import_row.existing_case = Some(existing);
-        }
-    }
+    apply_database_import_validation(&connection, &mut import_row);
 
     Ok(import_row)
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -17,20 +17,20 @@ interface StudentInfo {
 
 interface CaseRecord {
   id: number;
-  students: string;
+  first_name: string;
+  last_name: string;
+  middle_initial: string;
+  level: string;
+  section: string;
   date: string;
   date_filed: string;
+  adviser: string;
   case: string;
   description: string;
   sanction: string;
   progress: string;
   proofs: string;
-}
-
-interface ProofItem {
-  name: string;
-  data: string;
-  created_at: string;
+  students: string;
 }
 
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
@@ -42,16 +42,6 @@ const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
     return JSON.parse(studentsStr) || [];
   } catch (e) {
-    return [];
-  }
-};
-
-const parseProofs = (proofsStr: string): ProofItem[] => {
-  if (!proofsStr) return [];
-  try {
-    const parsed = JSON.parse(proofsStr) as ProofItem[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
     return [];
   }
 };
@@ -76,29 +66,6 @@ const formatIncidentDate = (dateStr: string) => {
     month: "short",
     day: "numeric",
   });
-};
-
-const formatExportDate = (dateStr: string) => {
-  if (!dateStr) return "";
-  const parsed = new Date(dateStr);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return dateStr;
-  }
-
-  return parsed.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-};
-
-const getExcelImageExtension = (dataUrl: string): "jpeg" | "png" | "gif" | null => {
-  const match = dataUrl.match(/^data:image\/(png|jpe?g|gif);base64,/i);
-  if (!match) return null;
-
-  const extension = match[1].toLowerCase();
-  return extension === "jpg" ? "jpeg" : extension as "jpeg" | "png" | "gif";
 };
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
@@ -196,9 +163,12 @@ export default function CaseCatalog() {
   const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [isToastVisible, setIsToastVisible] = useState(false);
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [isDeleteConfirmClosing, setIsDeleteConfirmClosing] = useState(false);
+  const toastTimerRef = useRef<number | null>(null);
   const todayDate = getTodayDateString();
 
   const loadCases = useCallback(async () => {
@@ -225,6 +195,23 @@ export default function CaseCatalog() {
       window.removeEventListener("cases:changed", loadCases);
     };
   }, [loadCases]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setIsToastVisible(false);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    window.requestAnimationFrame(() => setIsToastVisible(true));
+    toastTimerRef.current = window.setTimeout(() => {
+      setIsToastVisible(false);
+      window.setTimeout(() => setToastMessage(""), 1000);
+    }, 2800);
+  };
 
   const stats = useMemo(() => {
     return {
@@ -411,52 +398,10 @@ export default function CaseCatalog() {
 
   const handleExportExcel = async () => {
     if (filteredAndSortedCases.length === 0) {
-      alert("No cases to export.");
+      showToast("No cases to export.");
       return;
     }
 
-    // Determine active filters text
-    const activeFilters: string[] = [];
-    if (searchQuery.trim()) {
-      activeFilters.push(`Search: "${searchQuery.trim()}"`);
-    }
-    if (statusFilter !== "All Statuses") {
-      activeFilters.push(`Status: ${statusFilter}`);
-    }
-
-    if (startDate || endDate) {
-      const start = startDate ? formatIncidentDate(startDate) : "Any";
-      const end = endDate ? formatIncidentDate(endDate) : "Any";
-      activeFilters.push(`Date: ${start} - ${end}`);
-    }
-    const filterText = activeFilters.join(", ") || "None";
-
-    // 1. Dynamic Sheet Name (strictly sanitized & <= 31 chars)
-    let sheetName = "Cases";
-    if (activeFilters.length > 0) {
-      const nameParts: string[] = [];
-      if (statusFilter !== "All Statuses") {
-        nameParts.push(statusFilter);
-      }
-
-      if (startDate || endDate) {
-        const start = startDate ? formatIncidentDate(startDate) : "";
-        const end = endDate ? formatIncidentDate(endDate) : "";
-        if (start && end) nameParts.push(`${start}-${end}`);
-        else if (start) nameParts.push(`From ${start}`);
-        else if (end) nameParts.push(`To ${end}`);
-      }
-
-      if (searchQuery.trim()) {
-        nameParts.push(searchQuery.trim());
-      }
-      const rawSheetName = nameParts.join(" ").trim();
-      if (rawSheetName) {
-        sheetName = rawSheetName.replace(/[\\/*?[\]:]/g, "").substring(0, 31).trim() || "Cases";
-      }
-    }
-
-    // 2. Dynamic Filename based on filters
     const filenameParts: string[] = ["cases_export"];
     if (statusFilter !== "All Statuses") {
       filenameParts.push(statusFilter.toLowerCase());
@@ -480,88 +425,54 @@ export default function CaseCatalog() {
       workbook.creator = "LC Guidance";
       workbook.created = new Date();
 
-      const worksheet = workbook.addWorksheet(sheetName);
-      [12, 22, 22, 32, 25, 42, 15, 28, 30, 36].forEach((width, index) => {
+      const worksheet = workbook.addWorksheet("Cases");
+      worksheet.views = [{ state: "frozen", ySplit: 1 }];
+      [10, 18, 18, 18, 16, 16, 16, 22, 22, 28, 42, 28, 18, 48, 64].forEach((width, index) => {
         worksheet.getColumn(index + 1).width = width;
       });
 
-      worksheet.addRow(["CASE CATALOG EXPORT"]);
-      worksheet.addRow([`Exported on: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`]);
-      worksheet.addRow([`Active Filters: ${filterText}`]);
-      worksheet.addRow([]);
-
       const headerRow = worksheet.addRow([
-        "Case ID",
-        "Date Filed",
-        "Incident Date",
-        "Student Name(s)",
-        "Case Type",
-        "Description",
-        "Status",
-        "Adviser(s)",
-        "Sanction",
-        "Proofs",
+        "id",
+        "first_name",
+        "last_name",
+        "middle_initial",
+        "level",
+        "section",
+        "date",
+        "date_filed",
+        "adviser",
+        "case",
+        "description",
+        "sanction",
+        "progress",
+        "proofs",
+        "students",
       ]);
-
-      worksheet.mergeCells("A1:J1");
-      worksheet.mergeCells("A2:J2");
-      worksheet.mergeCells("A3:J3");
-      worksheet.getRow(1).font = { bold: true, size: 14 };
-      worksheet.getRow(2).font = { italic: true };
-      worksheet.getRow(3).font = { italic: true };
       headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
       headerRow.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FF1E40AF" },
+        fgColor: { argb: "FF002F87" },
       };
 
       filteredAndSortedCases.forEach((c) => {
-        const students = parseStudents(c.students);
-        const proofs = parseProofs(c.proofs);
-        const studentNames = students.map(s => `${s.lastName}, ${s.firstName} ${s.middleInitial ? s.middleInitial + "." : ""}`.trim()).join("; ");
-        const advisers = [...new Set(students.map(s => s.adviser))].filter(Boolean).join("; ");
-        const proofSummary = proofs.length === 0
-          ? "No proofs"
-          : `${proofs.length} proof${proofs.length === 1 ? "" : "s"} embedded below`;
-
-        const caseRow = worksheet.addRow([
-          formatCaseId(c.id),
-          formatExportDate(c.date_filed),
-          formatExportDate(c.date),
-          studentNames,
+        worksheet.addRow([
+          c.id,
+          c.first_name,
+          c.last_name,
+          c.middle_initial,
+          c.level,
+          c.section,
+          c.date,
+          c.date_filed,
+          c.adviser,
           c.case,
-          c.description || "",
+          c.description,
+          c.sanction,
           c.progress,
-          advisers,
-          c.sanction || "None",
-          proofSummary,
+          c.proofs,
+          c.students,
         ]);
-        caseRow.height = 48;
-
-        proofs.forEach((proof, proofIndex) => {
-          const proofRow = worksheet.addRow(["", "", "", "", "", "", "", "", "", proof.name || `Proof ${proofIndex + 1}`]);
-          proofRow.height = 120;
-
-          const extension = getExcelImageExtension(proof.data);
-          if (!extension) {
-            proofRow.getCell(10).value = `Unsupported proof file: ${proof.name || `Proof ${proofIndex + 1}`}`;
-            return;
-          }
-
-          // Strip the data URL prefix to get the raw base64 data
-          const rawBase64 = proof.data.replace(/^data:image\/(png|jpe?g|gif);base64,/i, "");
-
-          const imageId = workbook.addImage({
-            base64: rawBase64,
-            extension,
-          });
-
-          worksheet.addImage(imageId, {
-            tl: { col: 9, row: proofRow.number - 1 },
-            ext: { width: 170, height: 105 },
-          });
-        });
       });
 
       worksheet.eachRow((row: ExcelJS.Row) => {
@@ -586,6 +497,14 @@ export default function CaseCatalog() {
 
   return (
     <>
+      {toastMessage && createPortal(
+        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          <span className="material-symbols-outlined text-error" style={{ fontSize: 18 }}>error</span>
+          <p className="text-xs font-bold">{toastMessage}</p>
+        </div>,
+        document.body
+      )}
+
       <div className="flex justify-between items-end mb-4">
         <h2 className="font-section-header text-section-header text-on-surface">Case Catalog</h2>
         <div className="flex items-center gap-2">
@@ -776,7 +695,7 @@ export default function CaseCatalog() {
               {!isLoading && !error && filteredAndSortedCases.length === 0 && (
                 <tr>
                   <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
-                    No cases match your filters.
+                    {isFilterModified ? "No results found." : "No records found."}
                   </td>
                 </tr>
               )}

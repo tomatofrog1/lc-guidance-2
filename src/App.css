@@ -253,6 +253,24 @@
     will-change: opacity, transform;
   }
 
+  .app-toast {
+    gap: 0.625rem !important;
+    max-width: min(420px, calc(100vw - 2.5rem));
+    padding: 1rem 1.25rem !important;
+    border-radius: 0.875rem !important;
+  }
+
+  .app-toast .material-symbols-outlined {
+    font-size: 22px !important;
+    line-height: 1.25rem;
+    margin-top: 1px;
+  }
+
+  .app-toast p {
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+  }
+
   .catalog-page-enter {
     animation: catalog-page-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
     will-change: opacity;

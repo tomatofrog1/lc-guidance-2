@@ -1,25 +1,37 @@
 export interface CaseRecord {
   id: number;
-  students: string;
+  first_name: string;
+  last_name: string;
+  middle_initial: string;
+  level: string;
+  section: string;
   date: string;
   date_filed: string;
+  adviser: string;
   case: string;
   description: string;
   sanction: string;
   progress: string;
   proofs: string;
+  students: string;
 }
 
 export interface ImportRow {
+  id: string;
   first_name: string;
   last_name: string;
+  middle_initial: string;
   level: string;
   section: string;
   date: string;
+  date_filed: string;
   adviser: string;
   case: string;
+  description: string;
   sanction: string;
   progress: string;
+  proofs: string;
+  students: string;
   is_duplicate: boolean;
   existing_case: CaseRecord | null;
   has_errors: boolean;
@@ -27,15 +39,21 @@ export interface ImportRow {
 }
 
 export interface ImportRowInput {
+  id: string;
   first_name: string;
   last_name: string;
+  middle_initial: string;
   level: string;
   section: string;
   date: string;
+  date_filed: string;
   adviser: string;
   case: string;
+  description: string;
   sanction: string;
   progress: string;
+  proofs: string;
+  students: string;
 }
 
 export interface ParseFileResult {
