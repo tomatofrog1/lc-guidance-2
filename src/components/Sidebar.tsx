@@ -18,14 +18,12 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
     { path: "/backup", label: "Backup", icon: "backup", activePaths: ["/backup"] },
   ];
 
-  const activeIndex = Math.max(
-    navItems.findIndex((item) =>
-      item.activePaths.some((path) =>
-        path === "/" ? location.pathname === "/" : location.pathname.startsWith(path)
-      )
-    ),
-    0
+  const activeIndex = navItems.findIndex((item) =>
+    item.activePaths.some((path) =>
+      path === "/" ? location.pathname === "/" : location.pathname.startsWith(path)
+    )
   );
+  const isProfileActive = location.pathname.startsWith("/account");
 
   const getLinkClasses = (index: number) => {
     const isActive = index === activeIndex;
@@ -63,7 +61,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
       <div className={`mb-8 mt-4 flex items-center transition-[gap,padding] duration-500 ${
         isCollapsed ? "justify-center gap-0 px-0" : "gap-4 px-5"
       }`}>
-        <img src={lcLogo} alt="Laguna College Logo" className={`${isCollapsed ? "w-14 h-14" : "w-16 h-16"} object-contain shrink-0 transition-[width,height] duration-500`} />
+        <img src={lcLogo} alt="Laguna College Logo" className="w-14 h-14 object-contain shrink-0 transition-[width,height] duration-500" />
         <div className={`min-w-0 overflow-hidden transition-[opacity,width,transform] duration-300 ${
           isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
         }`}>
@@ -73,10 +71,12 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
       </div>
 
       <div className={`relative flex-grow transition-[padding] duration-500 ${isCollapsed ? "px-3" : "px-4"}`}>
-        <div
-          className={`nav-active-indicator ${isCollapsed ? "nav-active-indicator-collapsed" : ""}`}
-          style={{ transform: `translateY(${activeIndex * 52}px)` }}
-        />
+        {activeIndex >= 0 && (
+          <div
+            className={`nav-active-indicator ${isCollapsed ? "nav-active-indicator-collapsed" : ""}`}
+            style={{ transform: `translateY(${activeIndex * 52}px)` }}
+          />
+        )}
         <div className="relative flex flex-col gap-1">
           {navItems.map((item, index) => (
             <Link key={item.path} to={item.path} className={getLinkClasses(index)} title={isCollapsed ? item.label : undefined}>
@@ -94,17 +94,23 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         </div>
       </div>
 
-      <div className={`mt-auto flex flex-col gap-1 border-t border-surface-variant pt-4 transition-[margin,padding] duration-500 ${
+      <div className={`relative mt-auto flex flex-col gap-1 border-t border-surface-variant pt-4 transition-[margin,padding] duration-500 ${
         isCollapsed ? "mx-3 px-0" : "mx-4 px-4"
       }`}>
+        {isProfileActive && (
+          <div
+            className={`nav-active-indicator ${isCollapsed ? "nav-active-indicator-collapsed" : ""}`}
+            style={{ transform: "translateY(68px)" }}
+          />
+        )}
         <button
           onClick={toggleDarkMode}
           title={isCollapsed ? (isDark ? "Light Mode" : "Dark Mode") : undefined}
-          className={`flex items-center rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-[background-color,color,padding] duration-500 cursor-pointer active:scale-95 w-full text-left ${
+          className={`relative z-10 flex items-center rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 w-full text-left group ${
             isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
           }`}
         >
-          <span className="material-symbols-outlined shrink-0 transition-colors duration-500">{isDark ? "light_mode" : "dark_mode"}</span>
+          <span className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300 group-hover:[font-variation-settings:'FILL'_1]">{isDark ? "light_mode" : "dark_mode"}</span>
           <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
             isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
           }`}>{isDark ? "Light Mode" : "Dark Mode"}</span>
@@ -112,11 +118,16 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         <Link
           to="/account"
           title={isCollapsed ? "Counselor Profile" : undefined}
-          className={`flex items-center rounded-DEFAULT text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-[background-color,color,padding] duration-500 cursor-pointer active:scale-95 w-full text-left ${
+          className={`relative z-10 flex items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 w-full text-left group ${
             isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
-          }`}
+          } ${isProfileActive ? "text-primary dark:text-on-primary-container font-semibold" : "text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim"}`}
         >
-          <span className="material-symbols-outlined shrink-0 transition-colors duration-500">account_circle</span>
+          <span
+            className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300 group-hover:[font-variation-settings:'FILL'_1]"
+            style={{ fontVariationSettings: `'FILL' ${isProfileActive ? 1 : 0}` }}
+          >
+            account_circle
+          </span>
           <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
             isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
               }`}>Counselor Profile</span>

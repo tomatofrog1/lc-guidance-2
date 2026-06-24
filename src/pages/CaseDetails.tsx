@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import html2pdf from "html2pdf.js";
@@ -253,7 +254,15 @@ export default function CaseDetails() {
         margin: [0.5, 0.5] as [number, number],
         filename,
         image: { type: "jpeg" as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#FAF9F5",
+          onclone: (clonedDocument: Document) => {
+            clonedDocument.documentElement.classList.remove("dark");
+          },
+        },
         jsPDF: { unit: "in", format: "letter", orientation: "portrait" as const },
         pagebreak: { mode: ["css", "legacy"] }
       };
@@ -825,12 +834,13 @@ export default function CaseDetails() {
           </div>
         </div>
 
-        {/* Signature Area */}
-        <div className="flex justify-end px-8 pb-8 mt-4 shrink-0">
-          <div className="w-56 border-t border-outline-variant pt-1 text-center">
-            <span className="text-[9px] font-bold text-secondary/65 uppercase tracking-widest">Authorized Signature Area</span>
+        {isExporting && (
+          <div className="flex justify-end px-8 pb-8 mt-4 shrink-0">
+            <div className="w-56 border-t border-outline-variant pt-1 text-center">
+              <span className="text-[9px] font-bold text-secondary/65 uppercase tracking-widest">Authorized Signature Area</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Dynamic PDF Attachments */}
         {isExporting && displayedProofs.length > 0 && (
@@ -921,7 +931,7 @@ export default function CaseDetails() {
         )}
       </div>
 
-      {deleteProofIndex !== null && (
+      {deleteProofIndex !== null && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div
             className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${
@@ -954,11 +964,12 @@ export default function CaseDetails() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Lightbox Modal for Full Image View */}
-      {selectedProofUrl && (
+      {selectedProofUrl && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className={`absolute inset-0 bg-black/80 backdrop-blur-sm ${
@@ -981,10 +992,11 @@ export default function CaseDetails() {
               className="max-w-full max-h-[80vh] object-contain rounded-xl"
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {showCancelConfirm && (
+      {showCancelConfirm && createPortal(
         <div className={`fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm ${
           isCancelConfirmClosing ? "unsaved-confirm-backdrop-exit" : "unsaved-confirm-backdrop-enter"
         }`}>
@@ -1013,9 +1025,10 @@ export default function CaseDetails() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-      {isExporting && (
+      {isExporting && createPortal(
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm">
           <div className="bg-surface border border-outline-variant p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-xs w-full text-center">
             <span className="material-symbols-outlined text-4xl animate-spin text-primary">sync</span>
@@ -1024,7 +1037,8 @@ export default function CaseDetails() {
               <p className="text-xs text-secondary mt-1">This may take a few seconds as we compile page layouts and attachments...</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

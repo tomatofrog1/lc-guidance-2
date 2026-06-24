@@ -242,6 +242,25 @@ pub fn update_smtp_config(
 }
 
 #[tauri::command]
+pub fn get_recovery_email(state: State<'_, DbState>) -> Result<String, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    get_config(&connection, "recovery_email").map(|value| value.unwrap_or_default())
+}
+
+#[tauri::command]
+pub fn update_recovery_email(
+    state: State<'_, DbState>,
+    recovery_email: String,
+) -> Result<(), String> {
+    if recovery_email.trim().is_empty() {
+        return Err("Recovery email cannot be empty".to_string());
+    }
+
+    let connection = state.connection.lock().map_err(db_error)?;
+    set_config(&connection, "recovery_email", recovery_email.trim())
+}
+
+#[tauri::command]
 pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
     let connection = state.connection.lock().map_err(db_error)?;
     let mut statement = connection

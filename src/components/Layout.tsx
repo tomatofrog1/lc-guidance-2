@@ -55,7 +55,7 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
         onCaseFiled={() => showSuccessToast("Case filed successfully.")}
       />
       {successToastMessage && (
-        <div className={`fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-green-500/30 bg-green-50 px-4 py-3 text-green-900 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${isSuccessToastVisible ? "translate-x-0 opacity-100 case-toast-x-enter" : "translate-x-4 opacity-0"}`}>
+        <div className={`fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-green-500/30 bg-green-50 px-4 py-3 text-green-900 shadow-xl ${isSuccessToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
           <span className="material-symbols-outlined text-green-600" style={{ fontSize: 18 }}>check_circle</span>
           <p className="text-xs font-bold">{successToastMessage}</p>
         </div>
