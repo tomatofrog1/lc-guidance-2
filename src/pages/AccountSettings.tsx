@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { save, open } from "@tauri-apps/plugin-dialog";
 
 const cleanPin = (value: string) => value.replace(/\D/g, "").slice(0, 6);
 type ToastType = "success" | "error";
@@ -24,6 +26,92 @@ export default function AccountSettings() {
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
+
+  const [pinVerificationAction, setPinVerificationAction] = useState<"export" | "import" | null>(null);
+  const [verificationPin, setVerificationPin] = useState("");
+  const [showVerificationPin, setShowVerificationPin] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
+  const [isVerificationModalClosing, setIsVerificationModalClosing] = useState(false);
+
+  const handleOpenVerification = (action: "export" | "import") => {
+    setPinVerificationAction(action);
+    setVerificationPin("");
+    setIsVerificationModalClosing(false);
+  };
+
+  const handleCloseVerification = () => {
+    setIsVerificationModalClosing(true);
+    window.setTimeout(() => {
+      setPinVerificationAction(null);
+      setIsVerificationModalClosing(false);
+    }, 200);
+  };
+
+  const handleVerifyAndExecute = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!validatePin(verificationPin)) {
+      showToast("error", "PIN must be exactly 6 digits.");
+      return;
+    }
+
+    setVerificationBusy(true);
+    try {
+      const isValid = await invoke<boolean>("verify_pin", { pin: verificationPin });
+      if (!isValid) {
+        showToast("error", "Incorrect PIN.");
+        setVerificationBusy(false);
+        return;
+      }
+
+      handleCloseVerification();
+
+      if (pinVerificationAction === "export") {
+        await executeExport();
+      } else if (pinVerificationAction === "import") {
+        await executeImport();
+      }
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : String(err));
+    } finally {
+      setVerificationBusy(false);
+    }
+  };
+
+  const executeExport = async () => {
+    try {
+      const targetPath = await save({
+        filters: [{ name: "Database", extensions: ["db"] }],
+        defaultPath: "guidance_backup.db"
+      });
+      if (!targetPath) return;
+
+      await invoke("export_db_file", { destPath: targetPath });
+      showToast("success", "Database exported successfully for migration.");
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const executeImport = async () => {
+    try {
+      const selectedPath = await open({
+        multiple: false,
+        filters: [{ name: "Database", extensions: ["db"] }]
+      });
+      if (!selectedPath) return;
+
+      const confirmImport = window.confirm("WARNING: Importing this database file will overwrite your current database. This action cannot be undone. Do you want to proceed?");
+      if (!confirmImport) return;
+
+      await invoke("import_db_file", { srcPath: selectedPath });
+      showToast("success", "Database imported successfully! The app will now reload.");
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : String(err));
+    }
+  };
 
   const showToast = (type: ToastType, message: string) => {
     setToast({ type, message });
@@ -246,6 +334,84 @@ export default function AccountSettings() {
           )}
         </form>
       </div>
+
+      <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
+          <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+            Database Migration
+          </h3>
+          <p className="text-xs text-secondary mt-1">Export or import the full database for migration.</p>
+        </div>
+        <div className="p-6 flex flex-col sm:flex-row gap-4">
+          <button
+            type="button"
+            onClick={() => handleOpenVerification("export")}
+            className="flex-1 bg-[#0B1E43] hover:bg-[#122e66] text-white font-bold text-sm py-3 px-5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[18px]">upload</span>
+            Export Database for Migration
+          </button>
+          <button
+            type="button"
+            onClick={() => handleOpenVerification("import")}
+            className="flex-1 border border-outline-variant hover:bg-surface-container text-on-surface font-bold text-sm py-3 px-5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            Import Database
+          </button>
+        </div>
+      </div>
+
+      {pinVerificationAction !== null && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className={`absolute inset-0 bg-black/45 ${
+              isVerificationModalClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+            onClick={handleCloseVerification}
+          />
+          <form 
+            onSubmit={handleVerifyAndExecute}
+            className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${
+              isVerificationModalClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}
+          >
+            <div className="flex items-center gap-3 text-primary dark:text-[#7f9cf8] mb-3">
+              <span className="material-symbols-outlined text-[28px]">lock</span>
+              <h3 className="text-xl font-bold">Verify PIN</h3>
+            </div>
+            <p className="text-secondary text-sm mb-6 leading-relaxed">
+              Please enter your 6-digit counselor PIN to authorize this database action.
+            </p>
+            <div className="mb-6">
+              {renderSecretInput(verificationPin, setVerificationPin, showVerificationPin, () => setShowVerificationPin((value) => !value), {
+                className: secretPinClass,
+                inputMode: "numeric",
+                placeholder: "000000",
+                cleanValue: cleanPin,
+              })}
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={handleCloseVerification}
+                className="px-4 py-2 rounded-lg font-bold text-sm bg-surface-container hover:bg-surface-container-high transition-colors duration-500 text-on-surface border border-outline-variant"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={verificationBusy}
+                className="px-4 py-2 rounded-lg font-bold text-sm bg-primary hover:bg-[#122e66] transition-colors duration-500 text-white shadow-sm flex items-center gap-1.5 disabled:opacity-60"
+              >
+                {verificationBusy ? "Verifying..." : "Verify & Proceed"}
+              </button>
+            </div>
+          </form>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

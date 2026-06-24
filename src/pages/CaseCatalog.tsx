@@ -426,28 +426,43 @@ export default function CaseCatalog() {
       workbook.created = new Date();
 
       const worksheet = workbook.addWorksheet("Cases");
-      worksheet.views = [{ state: "frozen", ySplit: 1 }];
-      [10, 18, 18, 18, 16, 16, 16, 22, 22, 28, 42, 28, 18, 48, 64].forEach((width, index) => {
+
+      // Add Header Information
+      worksheet.addRow(["Export from LC Guidance App"]);
+      worksheet.addRow([`Date of Export: ${new Date().toLocaleDateString()}`]);
+      
+      let filterText = "Filters: None";
+      const activeFilters = [];
+      if (statusFilter !== "All Statuses") activeFilters.push(`Status: ${statusFilter}`);
+      if (startDate || endDate) activeFilters.push(`Date Range: ${startDate || 'Any'} to ${endDate || 'Any'}`);
+      if (searchQuery) activeFilters.push(`Search: ${searchQuery}`);
+      if (activeFilters.length > 0) filterText = `Filters: ${activeFilters.join(" | ")}`;
+      worksheet.addRow([filterText]);
+      worksheet.addRow([]); // Empty row
+
+      worksheet.views = [{ state: "frozen", ySplit: 5 }];
+      [10, 20, 20, 15, 16, 16, 16, 22, 22, 28, 42, 28, 18, 48].forEach((width, index) => {
         worksheet.getColumn(index + 1).width = width;
       });
 
-      const headerRow = worksheet.addRow([
-        "id",
-        "first_name",
-        "last_name",
-        "middle_initial",
-        "level",
-        "section",
-        "date",
-        "date_filed",
-        "adviser",
-        "case",
-        "description",
-        "sanction",
-        "progress",
-        "proofs",
-        "students",
-      ]);
+      const headers = [
+        "Case ID",
+        "First Name",
+        "Last Name",
+        "Middle Initial",
+        "Grade Level",
+        "Section",
+        "Incident Date",
+        "Date Filed",
+        "Adviser",
+        "Case Type",
+        "Description",
+        "Sanction",
+        "Progress",
+        "Proofs"
+      ];
+
+      const headerRow = worksheet.addRow(headers);
       headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
       headerRow.fill = {
         type: "pattern",
@@ -456,11 +471,43 @@ export default function CaseCatalog() {
       };
 
       filteredAndSortedCases.forEach((c) => {
-        worksheet.addRow([
+        let proofsText = "";
+        let hasImages = false;
+        let proofsArr: any[] = [];
+        try {
+          if (c.proofs) {
+            proofsArr = JSON.parse(c.proofs);
+            if (Array.isArray(proofsArr)) {
+              const nonImages = proofsArr.filter((p: any) => {
+                const isImg = p.data && p.data.match(/^data:image\/(png|jpeg|jpg|gif);/i);
+                if (isImg) hasImages = true;
+                return !isImg;
+              });
+              proofsText = nonImages.map((p: any) => p.name).join("\n");
+            }
+          }
+        } catch(e) {}
+
+        let firstNames = c.first_name;
+        let lastNames = c.last_name;
+        let middleInitials = c.middle_initial;
+        
+        try {
+          if (c.students) {
+            const studentsArr = JSON.parse(c.students);
+            if (Array.isArray(studentsArr) && studentsArr.length > 0) {
+              firstNames = studentsArr.map((s: any) => s.firstName).join("\n");
+              lastNames = studentsArr.map((s: any) => s.lastName).join("\n");
+              middleInitials = studentsArr.map((s: any) => s.middleInitial).join("\n");
+            }
+          }
+        } catch(e) {}
+
+        const row = worksheet.addRow([
           c.id,
-          c.first_name,
-          c.last_name,
-          c.middle_initial,
+          firstNames,
+          lastNames,
+          middleInitials,
           c.level,
           c.section,
           c.date,
@@ -470,12 +517,55 @@ export default function CaseCatalog() {
           c.description,
           c.sanction,
           c.progress,
-          c.proofs,
-          c.students,
+          proofsText,
         ]);
+
+        const rIndex = row.number;
+
+        if (hasImages && Array.isArray(proofsArr)) {
+          row.height = 75; // Set row height in points (e.g. 75 points ~ 100px)
+          
+          let imgIndex = 0;
+          proofsArr.forEach((p: any) => {
+            const match = p.data && p.data.match(/^data:image\/(png|jpeg|jpg|gif);base64,(.+)$/i);
+            if (match) {
+              let ext = match[1].toLowerCase();
+              if (ext === 'jpg') ext = 'jpeg';
+              const base64 = match[2];
+              
+              try {
+                const imageId = workbook.addImage({
+                  base64: base64,
+                  extension: ext as 'png' | 'jpeg' | 'gif',
+                });
+                
+                // Position side-by-side: 65x65px thumbnail
+                // Space them out by 75px (65px img + 10px margin)
+                const xOffsetPx = 10 + (imgIndex * 75);
+                const colOff = xOffsetPx * 9525;
+                const rowOff = 5 * 9525;
+                
+                worksheet.addImage(imageId, {
+                  tl: { col: 13, row: rIndex - 1, colOff, rowOff },
+                  ext: { width: 65, height: 65 },
+                  editAs: 'oneCell'
+                });
+                imgIndex++;
+              } catch (err) {
+                console.error("Error adding image to excel:", err);
+              }
+            }
+          });
+        }
       });
 
-      worksheet.eachRow((row: ExcelJS.Row) => {
+      worksheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
+        if (rowNumber <= 4) {
+          if (rowNumber === 1) {
+            row.getCell(1).font = { bold: true, size: 14 };
+          }
+          return;
+        }
         row.eachCell((cell: ExcelJS.Cell) => {
           cell.alignment = { vertical: "top", wrapText: true };
           cell.border = {
@@ -512,7 +602,7 @@ export default function CaseCatalog() {
             onClick={() => setIsImportModalOpen(true)}
             className="px-4 py-2 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-variant rounded-lg font-bold text-sm transition-colors duration-500 shadow-sm flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-[18px]">publish</span>
+            <span className="material-symbols-outlined text-[18px]">download</span>
             Import Excel
           </button>
           <button

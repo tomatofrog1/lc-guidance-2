@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -139,6 +140,27 @@ export default function PendingCases() {
   const [dateSort, setDateSort]         = useState<"desc" | "asc">("desc");
   const [selectedProofs, setSelectedProofs] = useState<ProofItem[]>([]);
 
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isToastVisible, setIsToastVisible] = useState(false);
+  const toastTimerRef = useRef<number | null>(null);
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
+    setIsToastVisible(false);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    window.requestAnimationFrame(() => setIsToastVisible(true));
+    toastTimerRef.current = window.setTimeout(() => {
+      setIsToastVisible(false);
+      window.setTimeout(() => setToast(null), 1000);
+    }, 2800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   const selectedCase = cases.find((c) => c.id === selectedId) ?? null;
 
   const loadPendingCases = useCallback(async () => {
@@ -196,6 +218,10 @@ export default function PendingCases() {
         progress: newProgress,
         proofs: caseRecord.proofs
       });
+      
+      const caseIdFormatted = `#${caseId.toString().padStart(4, "0")}`;
+      showToast("success", `Case ${caseIdFormatted} successfully marked as ${newProgress}.`);
+
       setResolvedIds((prev) => new Set(prev).add(caseId));
 
       setTimeout(() => {
@@ -217,6 +243,7 @@ export default function PendingCases() {
       window.dispatchEvent(new Event("cases:changed"));
     } catch (err) {
       console.error("Failed to update case", err);
+      showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
       setResolvingId(null);
       setConfirmState("idle");
@@ -255,10 +282,25 @@ export default function PendingCases() {
   const detailIndicator = selectedCase ? getPendingIndicator(selectedCase.date_filed || selectedCase.date) : null;
 
   return (
-    <div 
-      className="flex flex-col bg-surface-container-low border border-outline-variant rounded-2xl overflow-hidden shadow-sm w-full"
-      style={{ height: "calc(100vh - 144px)" }}
-    >
+    <>
+      {toast && createPortal(
+        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+          toast.type === "success"
+            ? "border border-green-500/30 bg-green-50 text-green-900"
+            : "border border-error/30 bg-error-container text-on-error-container"
+        } ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          <span className={`material-symbols-outlined ${toast.type === "success" ? "text-green-600" : "text-error"}`} style={{ fontSize: 18 }}>
+            {toast.type === "success" ? "check_circle" : "error"}
+          </span>
+          <p className="text-xs font-bold">{toast.message}</p>
+        </div>,
+        document.body
+      )}
+
+      <div 
+        className="flex flex-col bg-surface-container-low border border-outline-variant rounded-2xl overflow-hidden shadow-sm w-full"
+        style={{ height: "calc(100vh - 144px)" }}
+      >
       <style>{`
         @keyframes fadeSlideOut {
           from { opacity: 1; transform: translateX(0); }
@@ -649,5 +691,6 @@ export default function PendingCases() {
         </div>
       </div>
     </div>
+    </>
   );
 }
