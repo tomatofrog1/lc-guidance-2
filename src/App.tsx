@@ -8,6 +8,7 @@ import CaseDetails from "./pages/CaseDetails";
 import PendingCases from "./pages/PendingCases";
 import Backup from "./pages/Backup";
 import AccountSettings from "./pages/AccountSettings";
+import ImportReview from "./pages/ImportReview";
 import SignIn from "./pages/SignIn";
 import "./App.css";
 
@@ -20,6 +21,7 @@ function AppRoutes() {
     if (location.pathname === "/pending") return "Pending Cases";
     if (location.pathname === "/backup") return "Backup";
     if (location.pathname === "/account") return "Counselor Profile";
+    if (location.pathname === "/import-review") return "Import Review";
     return "Summary & Reports";
   };
 
@@ -32,6 +34,7 @@ function AppRoutes() {
         <Route path="/case/:id" element={<CaseDetails />} />
         <Route path="/backup" element={<Backup />} />
         <Route path="/account" element={<AccountSettings />} />
+        <Route path="/import-review" element={<ImportReview />} />
       </Routes>
     </Layout>
   );

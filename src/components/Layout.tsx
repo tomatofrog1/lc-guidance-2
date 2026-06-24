@@ -33,6 +33,8 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
     };
   }, []);
 
+  const isImportReview = pageKey === "/import-review";
+
   return (
     <div className="app-shell text-on-background font-body-md text-body-md antialiased min-h-screen overflow-x-hidden">
       <div className="app-fullscreen-backdrop print:hidden" aria-hidden="true" />
@@ -40,12 +42,18 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
         <Sidebar isCollapsed={isSidebarCollapsed} onCollapsedChange={setIsSidebarCollapsed} />
       </div>
       <div className="print:hidden">
-        <TopAppBar title={title} onNewCaseClick={() => setIsNewCaseModalOpen(true)} isSidebarCollapsed={isSidebarCollapsed} />
+        {!isImportReview && (
+          <TopAppBar title={title} onNewCaseClick={() => setIsNewCaseModalOpen(true)} isSidebarCollapsed={isSidebarCollapsed} />
+        )}
       </div>
-      <main className={`print:ml-0 min-h-[calc(100vh-64px)] print:min-h-0 p-margin-page print:p-0 flex flex-col gap-gutter pb-12 print:pb-0 transition-[margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+      <main className={`print:ml-0 print:min-h-0 print:p-0 transition-[margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
         isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
+      } ${
+        isImportReview 
+          ? "h-screen flex flex-col overflow-hidden" 
+          : "min-h-[calc(100vh-64px)] p-margin-page gap-gutter pb-12"
       }`}>
-        <div key={pageKey} className="page-transition flex flex-col gap-gutter">
+        <div key={pageKey} className={`page-transition flex flex-col ${isImportReview ? "h-full overflow-hidden" : "gap-gutter"}`}>
           {children}
         </div>
       </main>

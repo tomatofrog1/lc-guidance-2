@@ -7,6 +7,7 @@ use tauri::Manager;
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let db_path = db::get_db_path(app.handle())?;
             let connection = db::open_db(&db_path)?;
@@ -46,7 +47,11 @@ fn main() {
             commands::create_backup,
             commands::restore_backup,
             commands::save_pdf,
-            commands::save_file
+            commands::save_file,
+            commands::parse_import_file,
+            commands::batch_import_cases,
+            commands::generate_import_template,
+            commands::validate_import_row
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
