@@ -1,0 +1,7 @@
+first name,last name,level,section,date,adviser,case,sanction,progress
+John,Doe,Grade 10,A,2026-05-08,Mr. Smith,Bullying,Suspension,Ongoing
+Jane,Smith,Grade 11,B,10/25/2026,Mrs. Jones,Cheating,Warning,Resolved
+Alice,Johnson,Grade 12,C,invalid_date_here,Mr. Brown,Tardiness,Detention,Pending
+Bob,,Grade 9,D,2026-01-15,Ms. Davis,Vandalism,Expulsion,Resolved
+Charlie,Chaplin,Grade 10,A,2026-02-20,Mr. Smith,,None,Pending
+David,Bowie,Grade 11,B,2026-03-10,Mrs. Jones,Skipping Class,Warning,Resolved

@@ -3,6 +3,9 @@ use rusqlite::{params, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+pub mod import;
+pub use import::*;
+
 use crate::db::DbState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,7 +22,7 @@ pub struct CaseRecord {
     pub proofs: String,
 }
 
-fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
+pub fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
     Ok(CaseRecord {
         id: row.get("id")?,
         students: row.get("students")?,

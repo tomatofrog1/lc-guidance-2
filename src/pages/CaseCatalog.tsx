@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import DatePicker from "../components/DatePicker";
 import ExcelJS from "exceljs";
+import ImportExcelModal from "../components/ImportExcelModal";
 
 interface StudentInfo {
   firstName: string;
@@ -194,6 +195,7 @@ export default function CaseCatalog() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [isDeleteConfirmClosing, setIsDeleteConfirmClosing] = useState(false);
@@ -547,8 +549,11 @@ export default function CaseCatalog() {
             return;
           }
 
+          // Strip the data URL prefix to get the raw base64 data
+          const rawBase64 = proof.data.replace(/^data:image\/(png|jpe?g|gif);base64,/i, "");
+
           const imageId = workbook.addImage({
-            base64: proof.data,
+            base64: rawBase64,
             extension,
           });
 
@@ -559,8 +564,8 @@ export default function CaseCatalog() {
         });
       });
 
-      worksheet.eachRow((row) => {
-        row.eachCell((cell) => {
+      worksheet.eachRow((row: ExcelJS.Row) => {
+        row.eachCell((cell: ExcelJS.Cell) => {
           cell.alignment = { vertical: "top", wrapText: true };
           cell.border = {
             top: { style: "thin", color: { argb: "FF9CA3AF" } },
@@ -583,13 +588,22 @@ export default function CaseCatalog() {
     <>
       <div className="flex justify-between items-end mb-4">
         <h2 className="font-section-header text-section-header text-on-surface">Case Catalog</h2>
-        <button
-          onClick={handleExportExcel}
-          className="px-4 py-2 bg-[#16a34a] hover:bg-[#15803d] text-white rounded-lg font-bold text-sm transition-colors duration-500 shadow-sm flex items-center gap-2"
-        >
-          <span className="material-symbols-outlined text-[18px]">table_view</span>
-          Export to Excel
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="px-4 py-2 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-variant rounded-lg font-bold text-sm transition-colors duration-500 shadow-sm flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-[18px]">publish</span>
+            Import Excel
+          </button>
+          <button
+            onClick={handleExportExcel}
+            className="px-4 py-2 bg-[#16a34a] hover:bg-[#15803d] text-white rounded-lg font-bold text-sm transition-colors duration-500 shadow-sm flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-[18px]">table_view</span>
+            Export to Excel
+          </button>
+        </div>
       </div>
 
       {/* Stat Cards */}
@@ -919,6 +933,12 @@ export default function CaseCatalog() {
         </div>,
         document.body
       )}
+
+      <ImportExcelModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportComplete={loadCases}
+      />
     </>
   );
 }
