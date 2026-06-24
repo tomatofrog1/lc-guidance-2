@@ -139,7 +139,7 @@ export default function AccountSettings() {
   return (
     <div className="flex flex-col gap-6 animate-fade-in pb-12">
       {toast && (
-        <div className={`fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
           toast.type === "success"
             ? "border border-green-500/30 bg-green-50 text-green-900"
             : "border border-error/30 bg-error-container text-on-error-container"

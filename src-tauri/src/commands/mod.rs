@@ -11,28 +11,40 @@ use crate::db::DbState;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaseRecord {
     pub id: i64,
-    pub students: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub middle_initial: String,
+    pub level: String,
+    pub section: String,
     pub date: String,
     pub date_filed: String,
+    pub adviser: String,
     #[serde(rename = "case")]
     pub r#case: String,
     pub description: String,
     pub sanction: String,
     pub progress: String,
     pub proofs: String,
+    pub students: String,
 }
 
 pub fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
     Ok(CaseRecord {
         id: row.get("id")?,
-        students: row.get("students")?,
+        first_name: row.get("first_name")?,
+        last_name: row.get("last_name")?,
+        middle_initial: row.get("middle_initial")?,
+        level: row.get("level")?,
+        section: row.get("section")?,
         date: row.get("date")?,
         date_filed: row.get("date_filed")?,
+        adviser: row.get("adviser")?,
         r#case: row.get("case")?,
         description: row.get("description")?,
         sanction: row.get("sanction")?,
         progress: row.get("progress")?,
         proofs: row.get("proofs")?,
+        students: row.get("students")?,
     })
 }
 
@@ -269,7 +281,7 @@ pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
     let mut statement = connection
         .prepare(
             r#"
-SELECT id, students, date, date_filed, "case", description, sanction, progress, proofs
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students
 FROM cases
 ORDER BY id DESC
 "#,
@@ -379,7 +391,7 @@ pub fn get_case(state: State<'_, DbState>, id: i64) -> Result<CaseRecord, String
     let case = connection
         .query_row(
             r#"
-SELECT id, students, date, date_filed, "case", description, sanction, progress, proofs
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students
 FROM cases
 WHERE id = ?1
 "#,

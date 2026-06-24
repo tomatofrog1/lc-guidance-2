@@ -152,7 +152,7 @@ export default function Backup() {
     <div className="flex flex-col gap-6 animate-fade-in relative pb-12">
       {/* Toast Notification */}
       {notification && (
-        <div className={`fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl text-xs font-bold ${
+        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl text-xs font-bold ${
           notification.type === "success"
             ? "border border-green-500/30 bg-green-50 text-green-900"
             : "border border-error/30 bg-error-container text-on-error-container"
