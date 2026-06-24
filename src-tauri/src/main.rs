@@ -51,7 +51,9 @@ fn main() {
             commands::parse_import_file,
             commands::batch_import_cases,
             commands::generate_import_template,
-            commands::validate_import_row
+            commands::validate_import_row,
+            commands::export_db_file,
+            commands::import_db_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

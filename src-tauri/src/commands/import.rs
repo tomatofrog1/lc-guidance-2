@@ -8,22 +8,20 @@ use rust_xlsxwriter::{Workbook, Format};
 use crate::db::DbState;
 use super::{db_error, CaseRecord};
 
-const DB_IMPORT_HEADERS: [&str; 15] = [
-    "id",
-    "first_name",
-    "last_name",
-    "middle_initial",
-    "level",
-    "section",
-    "date",
-    "date_filed",
-    "adviser",
-    "case",
-    "description",
-    "sanction",
-    "progress",
-    "proofs",
-    "students",
+const DB_IMPORT_HEADERS: [&str; 13] = [
+    "First Name",
+    "Last Name",
+    "Middle Name",
+    "Grade Level",
+    "Section",
+    "Incident Date",
+    "Date Filed",
+    "Adviser",
+    "Case Type",
+    "Description",
+    "Sanction",
+    "Progress",
+    "Proofs",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,25 +137,102 @@ fn find_duplicate_by_id(connection: &rusqlite::Connection, id: i64) -> Result<Op
     ).optional().map_err(db_error)
 }
 
+fn find_duplicate_by_fields(
+    connection: &rusqlite::Connection,
+    first_name: &str,
+    last_name: &str,
+    date: &str,
+    case_type: &str,
+) -> Result<Option<CaseRecord>, String> {
+    use rusqlite::OptionalExtension;
+    connection.query_row(
+        r#"SELECT * FROM cases WHERE LOWER(TRIM(first_name)) = LOWER(TRIM(?1)) AND LOWER(TRIM(last_name)) = LOWER(TRIM(?2)) AND LOWER(TRIM(date)) = LOWER(TRIM(?3)) AND LOWER(TRIM("case")) = LOWER(TRIM(?4)) LIMIT 1"#,
+        params![first_name, last_name, date, case_type],
+        super::map_case
+    ).optional().map_err(db_error)
+}
+
 fn apply_database_import_validation(connection: &rusqlite::Connection, import_row: &mut ImportRow) {
-    match normalize_id(&import_row.id) {
-        Some(id) => import_row.id = id,
-        None => import_row.errors.push("id is required and must be a whole number".to_string()),
+    if !import_row.id.trim().is_empty() {
+        match normalize_id(&import_row.id) {
+            Some(id) => {
+                import_row.id = id;
+                if let Ok(id_val) = import_row.id.parse::<i64>() {
+                    if let Ok(Some(existing)) = find_duplicate_by_id(connection, id_val) {
+                        import_row.is_duplicate = true;
+                        import_row.existing_case = Some(existing);
+                    }
+                }
+            }
+            None => import_row.errors.push("id must be a whole number".to_string()),
+        }
+    } else {
+        if !import_row.first_name.trim().is_empty()
+            && !import_row.last_name.trim().is_empty()
+            && !import_row.date.trim().is_empty()
+            && !import_row.case.trim().is_empty()
+        {
+            if let Ok(Some(existing)) = find_duplicate_by_fields(
+                connection,
+                &import_row.first_name,
+                &import_row.last_name,
+                &import_row.date,
+                &import_row.case,
+            ) {
+                import_row.is_duplicate = true;
+                import_row.existing_case = Some(existing);
+            }
+        }
+    }
+
+    if import_row.first_name.trim().is_empty() {
+        import_row.errors.push("First Name is required".to_string());
+    }
+    if import_row.last_name.trim().is_empty() {
+        import_row.errors.push("Last Name is required".to_string());
+    }
+    if import_row.level.trim().is_empty() {
+        import_row.errors.push("Grade Level is required".to_string());
+    }
+    if import_row.section.trim().is_empty() {
+        import_row.errors.push("Section is required".to_string());
+    }
+    
+    if import_row.date.trim().is_empty() {
+        import_row.errors.push("Incident Date is required".to_string());
+    } else {
+        let trimmed_date = import_row.date.trim();
+        let valid_format = trimmed_date.len() == 10
+            && trimmed_date.chars().nth(4) == Some('-')
+            && trimmed_date.chars().nth(7) == Some('-')
+            && trimmed_date.chars().all(|c| c.is_numeric() || c == '-');
+        if !valid_format {
+            import_row.errors.push("Incident Date must be in YYYY-MM-DD format".to_string());
+        }
+    }
+
+    if !import_row.date_filed.trim().is_empty() {
+        let trimmed_date = import_row.date_filed.trim();
+        let valid_format = trimmed_date.len() == 10
+            && trimmed_date.chars().nth(4) == Some('-')
+            && trimmed_date.chars().nth(7) == Some('-')
+            && trimmed_date.chars().all(|c| c.is_numeric() || c == '-');
+        if !valid_format {
+            import_row.errors.push("Date Filed must be in YYYY-MM-DD format".to_string());
+        }
+    }
+
+    if import_row.adviser.trim().is_empty() {
+        import_row.errors.push("Adviser is required".to_string());
+    }
+    if import_row.case.trim().is_empty() {
+        import_row.errors.push("Case Type is required".to_string());
     }
 
     validate_json_text(&import_row.proofs, "proofs", &mut import_row.errors);
     validate_json_text(&import_row.students, "students", &mut import_row.errors);
 
     import_row.has_errors = !import_row.errors.is_empty();
-
-    if !import_row.has_errors {
-        if let Ok(id) = import_row.id.parse::<i64>() {
-            if let Ok(Some(existing)) = find_duplicate_by_id(connection, id) {
-                import_row.is_duplicate = true;
-                import_row.existing_case = Some(existing);
-            }
-        }
-    }
 }
 
 #[tauri::command]
@@ -200,28 +275,88 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
         }
 
         let mut import_row = ImportRow {
-            id: cell_to_db_string(row.get(0)),
-            first_name: cell_to_db_string(row.get(1)),
-            last_name: cell_to_db_string(row.get(2)),
-            middle_initial: cell_to_db_string(row.get(3)),
-            level: cell_to_db_string(row.get(4)),
-            section: cell_to_db_string(row.get(5)),
-            date: cell_to_date_string(row.get(6)),
-            date_filed: cell_to_date_string(row.get(7)),
-            adviser: cell_to_db_string(row.get(8)),
-            case: cell_to_db_string(row.get(9)),
-            description: cell_to_db_string(row.get(10)),
-            sanction: cell_to_db_string(row.get(11)),
-            progress: cell_to_db_string(row.get(12)),
-            proofs: cell_to_db_string(row.get(13)),
-            students: cell_to_db_string(row.get(14)),
+            id: String::new(),
+            first_name: cell_to_db_string(row.get(0)),
+            last_name: cell_to_db_string(row.get(1)),
+            middle_initial: cell_to_db_string(row.get(2)),
+            level: cell_to_db_string(row.get(3)),
+            section: cell_to_db_string(row.get(4)),
+            date: cell_to_date_string(row.get(5)),
+            date_filed: cell_to_date_string(row.get(6)),
+            adviser: cell_to_db_string(row.get(7)),
+            case: cell_to_db_string(row.get(8)),
+            description: cell_to_db_string(row.get(9)),
+            sanction: cell_to_db_string(row.get(10)),
+            progress: cell_to_db_string(row.get(11)),
+            proofs: cell_to_db_string(row.get(12)),
+            students: String::new(),
             is_duplicate: false,
             existing_case: None,
             has_errors: false,
             errors: Vec::new(),
         };
 
+        // Construct students JSON array dynamically
+        let fnames: Vec<&str> = import_row.first_name.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+        let lnames: Vec<&str> = import_row.last_name.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+        let mnames: Vec<&str> = import_row.middle_initial.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+
+        let mut student_list = Vec::new();
+        let max_len = fnames.len().max(lnames.len()).max(mnames.len());
+        for index in 0..max_len {
+            let fn_val = fnames.get(index).copied().unwrap_or("").to_string();
+            let ln_val = lnames.get(index).copied().unwrap_or("").to_string();
+            let mn_val = mnames.get(index).copied().unwrap_or("").to_string();
+            
+            student_list.push(serde_json::json!({
+                "firstName": fn_val,
+                "lastName": ln_val,
+                "middleInitial": mn_val,
+                "level": import_row.level,
+                "section": import_row.section,
+                "adviser": import_row.adviser
+            }));
+        }
+        import_row.students = serde_json::to_string(&student_list).unwrap_or_else(|_| "[]".to_string());
+
         apply_database_import_validation(&connection, &mut import_row);
+
+        if !import_row.is_duplicate && !import_row.has_errors {
+            let key_fn = import_row.first_name.trim().to_lowercase();
+            let key_ln = import_row.last_name.trim().to_lowercase();
+            let key_date = import_row.date.trim().to_lowercase();
+            let key_case = import_row.case.trim().to_lowercase();
+
+            if !key_fn.is_empty() && !key_ln.is_empty() && !key_date.is_empty() && !key_case.is_empty() {
+                let found_prev = result_rows.iter().find(|prev: &&ImportRow| {
+                    prev.first_name.trim().to_lowercase() == key_fn
+                        && prev.last_name.trim().to_lowercase() == key_ln
+                        && prev.date.trim().to_lowercase() == key_date
+                        && prev.case.trim().to_lowercase() == key_case
+                });
+
+                if let Some(prev) = found_prev {
+                    import_row.is_duplicate = true;
+                    import_row.existing_case = Some(CaseRecord {
+                        id: 0,
+                        first_name: prev.first_name.clone(),
+                        last_name: prev.last_name.clone(),
+                        middle_initial: prev.middle_initial.clone(),
+                        level: prev.level.clone(),
+                        section: prev.section.clone(),
+                        date: prev.date.clone(),
+                        date_filed: prev.date_filed.clone(),
+                        adviser: prev.adviser.clone(),
+                        case: prev.case.clone(),
+                        description: prev.description.clone(),
+                        sanction: prev.sanction.clone(),
+                        progress: prev.progress.clone(),
+                        proofs: prev.proofs.clone(),
+                        students: prev.students.clone(),
+                    });
+                }
+            }
+        }
 
         if import_row.has_errors {
             error_count += 1;
@@ -262,30 +397,66 @@ pub fn batch_import_cases(state: State<'_, DbState>, rows: Vec<ImportRowInput>) 
             "#
         ).map_err(db_error)?;
 
-        for (i, row) in rows.iter().enumerate() {
-            let Some(id) = normalize_id(&row.id) else {
-                failed_count += 1;
-                errors.push(format!("Row {}: id is required and must be a whole number", i + 1));
-                continue;
-            };
+        let mut stmt_with_id = tx.prepare(
+            r#"
+            INSERT INTO cases (
+                id, first_name, last_name, middle_initial, level, section, date, date_filed,
+                adviser, "case", description, sanction, progress, proofs, students
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            "#
+        ).map_err(db_error)?;
 
-            let res = stmt.execute(params![
-                id,
-                row.first_name,
-                row.last_name,
-                row.middle_initial,
-                row.level,
-                row.section,
-                row.date,
-                row.date_filed,
-                row.adviser,
-                row.case,
-                row.description,
-                row.sanction,
-                row.progress,
-                row.proofs,
-                row.students
-            ]);
+        let mut stmt_no_id = tx.prepare(
+            r#"
+            INSERT INTO cases (
+                first_name, last_name, middle_initial, level, section, date, date_filed,
+                adviser, "case", description, sanction, progress, proofs, students
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+            "#
+        ).map_err(db_error)?;
+
+        for (i, row) in rows.iter().enumerate() {
+            let res = if !row.id.trim().is_empty() {
+                let Some(id) = normalize_id(&row.id) else {
+                    failed_count += 1;
+                    errors.push(format!("Row {}: id must be a whole number", i + 1));
+                    continue;
+                };
+                stmt_with_id.execute(params![
+                    id,
+                    row.first_name,
+                    row.last_name,
+                    row.middle_initial,
+                    row.level,
+                    row.section,
+                    row.date,
+                    row.date_filed,
+                    row.adviser,
+                    row.case,
+                    row.description,
+                    row.sanction,
+                    row.progress,
+                    row.proofs,
+                    row.students
+                ])
+            } else {
+                stmt_no_id.execute(params![
+                    row.first_name,
+                    row.last_name,
+                    row.middle_initial,
+                    row.level,
+                    row.section,
+                    row.date,
+                    row.date_filed,
+                    row.adviser,
+                    row.case,
+                    row.description,
+                    row.sanction,
+                    row.progress,
+                    row.proofs,
+                    row.students
+                ])
+            };
 
             match res {
                 Ok(_) => inserted_count += 1,
@@ -318,7 +489,10 @@ pub fn batch_import_cases(state: State<'_, DbState>, rows: Vec<ImportRowInput>) 
 }
 
 #[tauri::command]
-pub fn generate_import_template() -> Result<String, String> {
+pub fn generate_import_template(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Manager;
+    use tauri_plugin_opener::OpenerExt;
+
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
     worksheet.set_name("Template").map_err(|e| e.to_string())?;
@@ -328,19 +502,22 @@ pub fn generate_import_template() -> Result<String, String> {
         .set_font_color("#FFFFFF")
         .set_background_color("#002F87");
 
-    let column_widths = [10.0, 18.0, 18.0, 18.0, 16.0, 16.0, 16.0, 22.0, 22.0, 28.0, 42.0, 28.0, 18.0, 48.0, 64.0];
+    let column_widths = [18.0, 18.0, 18.0, 16.0, 16.0, 16.0, 22.0, 22.0, 28.0, 42.0, 28.0, 18.0, 48.0];
 
     for (col, header) in DB_IMPORT_HEADERS.iter().enumerate() {
         worksheet.write_string_with_format(0, col as u16, *header, &header_format).map_err(|e| e.to_string())?;
         worksheet.set_column_width(col as u16, column_widths[col]).map_err(|e| e.to_string())?;
     }
 
-    let temp_dir = env::temp_dir();
-    let file_path = temp_dir.join("guidance_import_template.xlsx");
+    let download_dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let file_path = download_dir.join("guidance_import_template.xlsx");
     
     workbook.save(&file_path).map_err(|e| e.to_string())?;
 
-    Ok(file_path.to_string_lossy().to_string())
+    let path_str = file_path.to_string_lossy().to_string();
+    let _ = app.opener().open_path(&path_str, None::<&str>);
+
+    Ok(path_str)
 }
 
 #[tauri::command]
@@ -368,6 +545,28 @@ pub fn validate_import_row(state: State<'_, DbState>, row: ImportRowInput) -> Re
         has_errors: false,
         errors: Vec::new(),
     };
+
+    let fnames: Vec<&str> = import_row.first_name.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+    let lnames: Vec<&str> = import_row.last_name.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+    let mnames: Vec<&str> = import_row.middle_initial.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+
+    let mut student_list = Vec::new();
+    let max_len = fnames.len().max(lnames.len()).max(mnames.len());
+    for index in 0..max_len {
+        let fn_val = fnames.get(index).copied().unwrap_or("").to_string();
+        let ln_val = lnames.get(index).copied().unwrap_or("").to_string();
+        let mn_val = mnames.get(index).copied().unwrap_or("").to_string();
+        
+        student_list.push(serde_json::json!({
+            "firstName": fn_val,
+            "lastName": ln_val,
+            "middleInitial": mn_val,
+            "level": import_row.level,
+            "section": import_row.section,
+            "adviser": import_row.adviser
+        }));
+    }
+    import_row.students = serde_json::to_string(&student_list).unwrap_or_else(|_| "[]".to_string());
 
     apply_database_import_validation(&connection, &mut import_row);
 

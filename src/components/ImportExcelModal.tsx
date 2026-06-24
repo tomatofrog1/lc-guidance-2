@@ -72,7 +72,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
     try {
       setIsLoading(true);
       const filePath = await invoke<string>("generate_import_template");
-      await openPath(filePath);
+      showToast("Template saved to your Downloads folder!");
     } catch (e) {
       showToast(`Failed to generate template: ${e}`);
     } finally {
@@ -125,7 +125,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
           onClick={() => closeWithAnimation()}
         />
         <div 
-          className={`relative z-10 bg-surface rounded-3xl w-full max-w-md shadow-xl flex flex-col overflow-hidden ${
+          className={`relative z-10 bg-surface rounded-3xl w-full max-w-lg shadow-xl flex flex-col overflow-hidden ${
             isClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}
           onClick={(e) => e.stopPropagation()}
@@ -142,14 +142,58 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
           
           <div className="p-6">
             <div className="flex flex-col gap-4">
-            <p className="text-sm text-on-surface-variant">
-              Import cases using the exact database export Excel (.xlsx) format.
-            </p>
-              <div className="flex flex-col gap-3 mt-4">
+              <p className="text-sm text-on-surface-variant">
+                Import cases using the exact database export Excel (.xlsx) format. Below is how the sheet should look like for seamless importing:
+              </p>
+
+              {/* Table Preview */}
+              <div className="flex flex-col">
+                <p className="text-[10px] font-bold text-secondary uppercase tracking-wider mb-1.5">Sheet Structure Preview</p>
+                <div className="overflow-x-auto border border-outline-variant rounded-xl bg-surface-container-low max-w-full">
+                  <table className="min-w-full divide-y divide-outline-variant text-[11px] font-mono border-collapse">
+                    <thead className="bg-surface-container">
+                      <tr className="divide-x divide-outline-variant/60">
+                        {["First Name", "Last Name", "Middle Name", "Grade Level", "Section", "Incident Date", "Date Filed", "Adviser", "Case Type", "Description", "Sanction", "Progress", "Proofs"].map((col) => (
+                          <th key={col} className="px-3 py-2 text-left font-bold text-secondary whitespace-nowrap">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="bg-surface divide-x divide-outline-variant/60 border-t border-outline-variant">
+                        <td className="px-3 py-2 text-on-surface-variant">Jane</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Smith</td>
+                        <td className="px-3 py-2 text-on-surface-variant">A</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Grade 11</td>
+                        <td className="px-3 py-2 text-on-surface-variant">STEM</td>
+                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">2026-06-21</td>
+                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">2026-06-21</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Mrs. Cruz</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Truancy</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Skipped...</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Detention</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Resolved</td>
+                        <td className="px-3 py-2 text-on-surface-variant last:border-r-0">[]</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Tip alert box */}
+              <div className="bg-[#EEEDFE] border border-[#CECBF6]/60 p-3.5 rounded-xl flex items-start gap-2.5">
+                <span className="material-symbols-outlined text-[#534AB7] shrink-0" style={{ fontSize: 18 }}>lightbulb</span>
+                <p className="text-xs text-[#3C3489] font-medium leading-relaxed">
+                  <strong>TIP:</strong> You can easily download an empty, pre-configured file with all these headers set up by clicking the <strong>Download Template</strong> button below!
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 mt-2">
                 <button
                   onClick={handleSelectFile}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-on-primary rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary text-on-primary rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm animate-fade-in"
                 >
                   <span className="material-symbols-outlined text-[20px]">{isLoading ? "hourglass_empty" : "upload_file"}</span>
                   {isLoading ? "Parsing File..." : "Select File"}
@@ -157,7 +201,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
                 <button
                   onClick={handleDownloadTemplate}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-surface-container border border-outline-variant text-on-surface rounded-xl font-medium hover:bg-surface-variant transition-colors disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-surface-container border border-outline-variant text-on-surface rounded-xl font-medium hover:bg-surface-variant transition-colors disabled:opacity-50 text-sm"
                 >
                   <span className="material-symbols-outlined text-[20px]">download</span>
                   Download Template

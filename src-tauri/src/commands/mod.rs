@@ -596,3 +596,37 @@ pub fn save_pdf(
     save_file(app, base64_data, filename)
 }
 
+#[tauri::command]
+pub fn export_db_file(
+    app: tauri::AppHandle,
+    state: State<'_, DbState>,
+    dest_path: String,
+) -> Result<(), String> {
+    use std::fs;
+    let _conn = state.connection.lock().map_err(|_| "Failed to lock database state")?;
+    let db_path = crate::db::get_db_path(&app).map_err(|e| e.to_string())?;
+    fs::copy(&db_path, &dest_path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn import_db_file(
+    app: tauri::AppHandle,
+    state: State<'_, DbState>,
+    src_path: String,
+) -> Result<(), String> {
+    use std::fs;
+    let db_path = crate::db::get_db_path(&app).map_err(|e| e.to_string())?;
+    let mut connection_guard = state.connection.lock().map_err(|_| "Failed to lock database state")?;
+    
+    let temp_conn = rusqlite::Connection::open_in_memory().map_err(|e| e.to_string())?;
+    *connection_guard = temp_conn;
+
+    fs::copy(&src_path, &db_path).map_err(|e| e.to_string())?;
+
+    let new_conn = crate::db::open_db(&db_path).map_err(|e| e.to_string())?;
+    *connection_guard = new_conn;
+
+    Ok(())
+}
+

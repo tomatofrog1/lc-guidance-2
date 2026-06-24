@@ -9,13 +9,35 @@ export default function ImportReview() {
   const navigate = useNavigate();
   
   const state = location.state as { parseResult: ParseFileResult, filename: string } | null;
+
+  const fallbackRows = useMemo(() => {
+    try {
+      const stored = localStorage.getItem("lc_pending_import_rows");
+      return stored ? JSON.parse(stored) as ImportRow[] : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const fallbackFilename = useMemo(() => {
+    return localStorage.getItem("lc_pending_import_filename") || "";
+  }, []);
   
-  if (!state) {
+  if (!state && !fallbackRows) {
     return <Navigate to="/catalog" replace />;
   }
 
-  const [rows, setRows] = useState<ImportRow[]>(state.parseResult.rows);
-  const [filename] = useState(state.filename);
+  const [rows, setRows] = useState<ImportRow[]>(() => {
+    if (state) return state.parseResult.rows;
+    if (fallbackRows) return fallbackRows;
+    return [];
+  });
+  
+  const [filename] = useState(() => {
+    if (state) return state.filename;
+    if (fallbackFilename) return fallbackFilename;
+    return "";
+  });
   const [isImporting, setIsImporting] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [isToastVisible, setIsToastVisible] = useState(false);
@@ -36,8 +58,9 @@ export default function ImportReview() {
 
   // Default active tab: Issues if there are any, else Duplicates, else Ready
   const [activeTab, setActiveTab] = useState<"issues" | "duplicates" | "ready">(() => {
-    if (state.parseResult.rows.some(r => r.has_errors)) return "issues";
-    if (state.parseResult.rows.some(r => r.is_duplicate)) return "duplicates";
+    const initialRows = state ? state.parseResult.rows : (fallbackRows || []);
+    if (initialRows.some(r => r.has_errors)) return "issues";
+    if (initialRows.some(r => r.is_duplicate)) return "duplicates";
     return "ready";
   });
 
@@ -48,6 +71,27 @@ export default function ImportReview() {
 
   // Duplicate Comparison state (stores index of expanded duplicate row)
   const [expandedDuplicateIndex, setExpandedDuplicateIndex] = useState<number | null>(null);
+
+  // Sync to localStorage
+  useEffect(() => {
+    if (rows.length > 0) {
+      localStorage.setItem("lc_pending_import_rows", JSON.stringify(rows));
+      localStorage.setItem("lc_pending_import_filename", filename);
+    } else {
+      localStorage.removeItem("lc_pending_import_rows");
+      localStorage.removeItem("lc_pending_import_filename");
+    }
+  }, [rows, filename]);
+
+  const handleDisregard = (index: number) => {
+    if (window.confirm("Are you sure you want to disregard and remove this row from the import list?")) {
+      const newRows = rows.filter((_, i) => i !== index);
+      setRows(newRows);
+      setExpandedDuplicateIndex(null);
+      setEditingRowIndex(null);
+      showToast("Row removed from import list.");
+    }
+  };
 
   const parseStudents = (studentsStr: string) => {
     try {
@@ -137,6 +181,13 @@ export default function ImportReview() {
 
       if (result.success || result.inserted_count > 0) {
         alert(`Successfully imported ${result.inserted_count} records.`);
+        const readyIndices = new Set(readyRows.map(item => item.index));
+        const remainingRows = rows.filter((_, idx) => !readyIndices.has(idx));
+        setRows(remainingRows);
+        if (remainingRows.length === 0) {
+          localStorage.removeItem("lc_pending_import_rows");
+          localStorage.removeItem("lc_pending_import_filename");
+        }
         navigate("/catalog");
       } else {
         showToast(`Import failed. ${result.failed_count} errors. ${result.errors.join(" ")}`);
@@ -274,7 +325,7 @@ export default function ImportReview() {
                   {activeTab === "duplicates" && <th className="py-3 px-4 min-w-[160px]">Database Match</th>}
                   {activeTab === "ready" && <th className="py-3 px-4 w-28">Status</th>}
                   
-                  <th className="py-3 px-4 w-36 text-center">Actions</th>
+                  <th className="py-3 px-4 w-52 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/30 text-on-surface">
@@ -319,7 +370,7 @@ export default function ImportReview() {
                           <td className="py-2.5 px-4">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-semibold text-[#B06000] bg-[#FEF7E0] dark:text-[#ffe0b2] dark:bg-[#e65100]/30 border border-[#FEEFC3] dark:border-[#ffb74d]/30 px-2 py-0.5 rounded">
-                                Matches Existing Case
+                                {row.existing_case?.id === 0 ? "Duplicate in Excel Sheet" : "Matches Existing Case"}
                               </span>
                               <button
                                 onClick={() => setExpandedDuplicateIndex(expandedDuplicateIndex === index ? null : index)}
@@ -343,14 +394,24 @@ export default function ImportReview() {
 
                         {/* Actions */}
                         <td className="py-2.5 px-4 text-center">
-                          <button
-                            onClick={() => handleEditStart(index, row)}
-                            className="px-3.5 py-2 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 active:scale-95 rounded-xl transition-all flex items-center justify-center gap-1.5 mx-auto whitespace-nowrap"
-                            title="Edit and correct info"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">edit_note</span>
-                            {activeTab === "issues" ? "Fix Issues" : activeTab === "duplicates" ? "Edit Details" : "Edit Row"}
-                          </button>
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleEditStart(index, row)}
+                              className="px-3 py-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 active:scale-95 rounded-xl transition-all flex items-center justify-center gap-1 whitespace-nowrap"
+                              title="Edit and correct info"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                              {activeTab === "issues" ? "Fix Issues" : activeTab === "duplicates" ? "Edit Details" : "Edit Row"}
+                            </button>
+                            <button
+                              onClick={() => handleDisregard(index)}
+                              className="px-3 py-1.5 text-xs font-bold text-error bg-error/10 hover:bg-error/20 active:scale-95 rounded-xl transition-all flex items-center justify-center gap-1 whitespace-nowrap"
+                              title="Disregard and remove row"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">delete</span>
+                              Disregard
+                            </button>
+                          </div>
                         </td>
                       </tr>
 
@@ -394,7 +455,9 @@ export default function ImportReview() {
                                 </div>
                                 {/* Right Column: Database data */}
                                 <div className="flex flex-col gap-2 p-3 bg-surface-container-low rounded-lg border border-outline-variant/30">
-                                  <h4 className="font-bold text-primary dark:text-primary-fixed-dim uppercase tracking-wider text-[10px] mb-0.5 font-display-title">Existing Record (ID: #{String(row.existing_case.id).padStart(4, '0')})</h4>
+                                  <h4 className="font-bold text-primary dark:text-primary-fixed-dim uppercase tracking-wider text-[10px] mb-0.5 font-display-title">
+                                    {row.existing_case.id === 0 ? "Duplicate Entry in Excel Sheet" : `Existing Record (ID: #${String(row.existing_case.id).padStart(4, '0')})`}
+                                  </h4>
                                   <div className="grid grid-cols-3 gap-y-1">
                                     {(() => {
                                       const dbStudents = parseStudents(row.existing_case.students);
@@ -605,15 +668,7 @@ export default function ImportReview() {
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono resize-y"
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">students</label>
-                  <textarea
-                    rows={4}
-                    value={editData.students}
-                    onChange={e => handleEditChange("students", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono resize-y"
-                  />
-                </div>
+
               </div>
             </div>
 
