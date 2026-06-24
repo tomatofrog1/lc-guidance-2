@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -22,6 +22,8 @@ export default function Backup() {
   const [confirmRestoreFilename, setConfirmRestoreFilename] = useState<string | null>(null);
   const [isRestoreConfirmClosing, setIsRestoreConfirmClosing] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [isNotificationVisible, setIsNotificationVisible] = useState(false);
+  const notificationTimerRef = useRef<number | null>(null);
 
   // Settings states from localStorage
   const [autoBackup, setAutoBackup] = useState(() => {
@@ -77,10 +79,20 @@ export default function Backup() {
   // Notification helper
   const showNotification = (message: string, type: "success" | "error") => {
     setNotification({ message, type });
-    setTimeout(() => {
-      setNotification(null);
-    }, 4000);
+    setIsNotificationVisible(false);
+    if (notificationTimerRef.current) window.clearTimeout(notificationTimerRef.current);
+    window.requestAnimationFrame(() => setIsNotificationVisible(true));
+    notificationTimerRef.current = window.setTimeout(() => {
+      setIsNotificationVisible(false);
+      window.setTimeout(() => setNotification(null), 1000);
+    }, 2800);
   };
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimerRef.current) window.clearTimeout(notificationTimerRef.current);
+    };
+  }, []);
 
   // Run manual backup
   const handleBackupNow = async () => {
@@ -140,15 +152,15 @@ export default function Backup() {
     <div className="flex flex-col gap-6 animate-fade-in relative pb-12">
       {/* Toast Notification */}
       {notification && (
-        <div className={`fixed top-20 right-8 z-50 px-5 py-3 rounded-lg shadow-lg border flex items-center gap-2.5 transition-all transform translate-y-0 text-xs font-bold ${
+        <div className={`fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl text-xs font-bold ${
           notification.type === "success"
-            ? "bg-green-50 dark:bg-green-950/20 text-[#15803d] dark:text-[#34A06A] border-green-200 dark:border-green-800/50"
-            : "bg-red-50 dark:bg-red-950/20 text-[#ba1a1a] dark:text-[#F0594A] border-red-200 dark:border-red-800/50"
-        }`}>
-          <span className="material-symbols-outlined text-lg">
+            ? "border border-green-500/30 bg-green-50 text-green-900"
+            : "border border-error/30 bg-error-container text-on-error-container"
+        } ${isNotificationVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          <span className={`material-symbols-outlined ${notification.type === "success" ? "text-green-600" : "text-error"}`} style={{ fontSize: 18 }}>
             {notification.type === "success" ? "check_circle" : "error"}
           </span>
-          <span>{notification.message}</span>
+          <p className="text-xs font-bold">{notification.message}</p>
         </div>
       )}
 

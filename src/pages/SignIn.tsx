@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useEffect, useRef, useState, FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import lcLogo from "../assets/lc-logo.png";
 
@@ -9,6 +9,7 @@ interface SignInProps {
 }
 
 type ResetStep = "request" | "verify" | "new-pin";
+type ToastType = "success" | "error";
 
 const cleanPin = (value: string) => value.replace(/\D/g, "").slice(0, 6);
 const cleanAppPassword = (value: string) => value.replace(/\s/g, "");
@@ -32,17 +33,41 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
   const [showNewPin, setShowNewPin] = useState(false);
   const [showConfirmNewPin, setShowConfirmNewPin] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
+  const [isToastVisible, setIsToastVisible] = useState(false);
+  const toastTimerRef = useRef<number | null>(null);
 
   const validatePin = (value: string) => /^\d{6}$/.test(value);
+  const isLoginPinComplete = validatePin(pin);
+
+  const clearToast = () => {
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    setIsToastVisible(false);
+    setToast(null);
+  };
+
+  const showToast = (type: ToastType, message: string) => {
+    setToast({ type, message });
+    setIsToastVisible(false);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    window.requestAnimationFrame(() => setIsToastVisible(true));
+    toastTimerRef.current = window.setTimeout(() => {
+      setIsToastVisible(false);
+      window.setTimeout(() => setToast(null), 1000);
+    }, 2800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
-    setError("");
-    setNotice("");
+    clearToast();
     if (!validatePin(pin)) {
-      setError("Enter your 6-digit PIN.");
+      showToast("error", "Enter your 6-digit PIN.");
       return;
     }
 
@@ -52,10 +77,10 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
       if (isValid) {
         onSignIn();
       } else {
-        setError("Incorrect PIN. Try again.");
+        showToast("error", "Incorrect PIN. Try again.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
       setIsBusy(false);
     }
@@ -63,18 +88,17 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
 
   const handleSetup = async (e: FormEvent) => {
     e.preventDefault();
-    setError("");
-    setNotice("");
+    clearToast();
     if (!validatePin(setupPin)) {
-      setError("Create a 6-digit daily login PIN.");
+      showToast("error", "Create a 6-digit login PIN.");
       return;
     }
     if (setupPin !== confirmSetupPin) {
-      setError("The setup PINs do not match.");
+      showToast("error", "The setup PINs do not match.");
       return;
     }
     if (!smtpEmail.trim() || !smtpPassword.trim() || !recoveryEmail.trim()) {
-      setError("Fill in the Gmail and recovery email fields.");
+      showToast("error", "Fill in the Gmail and recovery email fields.");
       return;
     }
 
@@ -91,24 +115,23 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
         recoveryEmail: recoveryEmail.trim(),
       });
       onSetupComplete();
-      setNotice("Setup complete. Sign in with your new PIN.");
+      showToast("success", "Setup complete. Sign in with your new PIN.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
       setIsBusy(false);
     }
   };
 
   const handleRequestOtp = async () => {
-    setError("");
-    setNotice("");
+    clearToast();
     setIsBusy(true);
     try {
       await invoke("request_otp");
       setResetStep("verify");
-      setNotice("A reset code was sent to the recovery email.");
+      showToast("success", "A reset code was sent to the recovery email.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
       setIsBusy(false);
     }
@@ -116,10 +139,9 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
 
   const handleVerifyOtp = async (e: FormEvent) => {
     e.preventDefault();
-    setError("");
-    setNotice("");
+    clearToast();
     if (!validatePin(otp)) {
-      setError("Enter the 6-digit reset code.");
+      showToast("error", "Enter the 6-digit reset code.");
       return;
     }
 
@@ -128,12 +150,12 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
       const isValid = await invoke<boolean>("verify_otp", { code: otp });
       if (isValid) {
         setResetStep("new-pin");
-        setNotice("Code verified. Set a new PIN.");
+        showToast("success", "Code verified. Set a new PIN.");
       } else {
-        setError("Incorrect reset code.");
+        showToast("error", "Incorrect reset code.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
       setIsBusy(false);
     }
@@ -141,14 +163,13 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
 
   const handleResetPin = async (e: FormEvent) => {
     e.preventDefault();
-    setError("");
-    setNotice("");
+    clearToast();
     if (!validatePin(newPin)) {
-      setError("New PIN must be exactly 6 digits.");
+      showToast("error", "New PIN must be exactly 6 digits.");
       return;
     }
     if (newPin !== confirmNewPin) {
-      setError("The new PINs do not match.");
+      showToast("error", "The new PINs do not match.");
       return;
     }
 
@@ -161,29 +182,25 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
       setOtp("");
       setNewPin("");
       setConfirmNewPin("");
-      setNotice("PIN reset complete. Sign in with the new PIN.");
+      showToast("success", "PIN reset complete. Sign in with the new PIN.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
       setIsBusy(false);
     }
   };
 
-  const renderMessage = () => (
-    <>
-      {error && (
-        <div className="mb-5 p-3 rounded-md bg-error-container text-on-error-container border border-[#ffb4a7] dark:border-[#93000a] flex items-start gap-2">
-          <span className="material-symbols-outlined text-[20px]">error</span>
-          <p className="font-body-md text-sm mt-0.5">{error}</p>
-        </div>
-      )}
-      {notice && (
-        <div className="mb-5 p-3 rounded-md bg-green-50 text-[#166534] border border-green-200 flex items-start gap-2">
-          <span className="material-symbols-outlined text-[20px]">check_circle</span>
-          <p className="font-body-md text-sm mt-0.5">{notice}</p>
-        </div>
-      )}
-    </>
+  const renderToast = () => toast && (
+    <div className={`fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+      toast.type === "success"
+        ? "border border-green-500/30 bg-green-50 text-green-900"
+        : "border border-error/30 bg-error-container text-on-error-container"
+    } ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+      <span className={`material-symbols-outlined ${toast.type === "success" ? "text-green-600" : "text-error"}`} style={{ fontSize: 18 }}>
+        {toast.type === "success" ? "check_circle" : "error"}
+      </span>
+      <p className="text-xs font-bold">{toast.message}</p>
+    </div>
   );
 
   const inputClass = "rounded-md w-full bg-surface-container border border-outline-variant px-3 py-2.5 font-body-md text-on-surface caret-primary dark:caret-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all";
@@ -248,17 +265,16 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
 
           {!isSetupComplete ? (
             <form onSubmit={handleSetup} className="p-8 pt-6">
-              {renderMessage()}
               <div className="mb-5">
                 <h2 className="text-base font-bold text-on-surface">First Launch Setup</h2>
                 <p className="text-xs text-secondary mt-1">
-                  Create the daily 6-digit PIN and connect the Gmail account used for reset codes.
+                  Create a 6-digit PIN and connect the Gmail account used to send reset codes.
                 </p>
               </div>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="font-label-caps text-label-caps text-secondary block mb-1.5">Daily PIN</label>
+                    <label className="font-label-caps text-label-caps text-secondary block mb-1.5">6-Digit PIN</label>
                     {renderSecretInput(setupPin, setSetupPin, showSetupPin, () => setShowSetupPin((value) => !value), {
                       className: secretPinClass,
                       inputMode: "numeric",
@@ -297,7 +313,6 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
             </form>
           ) : showReset ? (
             <div className="p-8 pt-6">
-              {renderMessage()}
               <div className="mb-5">
                 <h2 className="text-base font-bold text-on-surface">Reset PIN</h2>
                 <p className="text-xs text-secondary mt-1">A 6-digit code will be sent to the saved recovery email.</p>
@@ -353,7 +368,6 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
             </div>
           ) : (
             <form onSubmit={handleLogin} className="p-8 pt-6">
-              {renderMessage()}
               <div>
                 <label className="font-label-caps text-label-caps text-secondary block mb-1.5">6-Digit PIN</label>
                 {renderSecretInput(pin, setPin, showLoginPin, () => setShowLoginPin((value) => !value), {
@@ -364,16 +378,17 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                   cleanValue: cleanPin,
                 })}
               </div>
-              <button type="submit" disabled={isBusy} className="mt-7 rounded-md w-full bg-primary hover:bg-primary-container hover:text-on-primary-container text-on-primary font-body-md font-medium py-3 transition-colors duration-500 disabled:opacity-60">
+              <button type="submit" disabled={isBusy || !isLoginPinComplete} className="mt-7 rounded-md w-full bg-primary hover:bg-primary-container hover:text-on-primary-container text-on-primary font-body-md font-medium py-3 transition-colors duration-500 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-primary disabled:hover:text-on-primary">
                 {isBusy ? "Signing In..." : "Sign In"}
               </button>
-              <button type="button" onClick={() => { setShowReset(true); setError(""); setNotice(""); }} className="mt-5 w-full text-center font-body-md text-xs text-secondary hover:text-primary font-bold">
+              <button type="button" onClick={() => { setShowReset(true); clearToast(); }} className="mt-5 w-full text-center font-body-md text-xs text-secondary hover:text-primary font-bold">
                 Forgot PIN?
               </button>
             </form>
           )}
         </div>
       </div>
+      {renderToast()}
     </div>
   );
 }

@@ -19,7 +19,7 @@ function AppRoutes() {
     if (location.pathname === "/catalog") return "Guidance Office";
     if (location.pathname === "/pending") return "Pending Cases";
     if (location.pathname === "/backup") return "Backup";
-    if (location.pathname === "/account") return "Counselor Account";
+    if (location.pathname === "/account") return "Counselor Profile";
     return "Summary & Reports";
   };
 

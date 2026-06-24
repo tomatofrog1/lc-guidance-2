@@ -40,6 +40,8 @@ fn main() {
             commands::reset_pin,
             commands::change_pin,
             commands::update_smtp_config,
+            commands::get_recovery_email,
+            commands::update_recovery_email,
             commands::get_backups,
             commands::create_backup,
             commands::restore_backup,

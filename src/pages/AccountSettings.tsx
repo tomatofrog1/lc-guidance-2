@@ -1,39 +1,63 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 const cleanPin = (value: string) => value.replace(/\D/g, "").slice(0, 6);
-const cleanAppPassword = (value: string) => value.replace(/\s/g, "");
+type ToastType = "success" | "error";
+
+const maskEmail = (value: string) => {
+  const [, domain = "gmail.com"] = value.split("@");
+  return `*****@${domain || "gmail.com"}`;
+};
 
 export default function AccountSettings() {
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
-  const [smtpEmail, setSmtpEmail] = useState("");
-  const [smtpPassword, setSmtpPassword] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [showCurrentPin, setShowCurrentPin] = useState(false);
   const [showNewPin, setShowNewPin] = useState(false);
   const [showConfirmPin, setShowConfirmPin] = useState(false);
-  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [showRecoveryEmail, setShowRecoveryEmail] = useState(false);
+  const [isRecoveryEditing, setIsRecoveryEditing] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
   const [emailBusy, setEmailBusy] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
+  const [isToastVisible, setIsToastVisible] = useState(false);
+  const toastTimerRef = useRef<number | null>(null);
 
-  const showMessage = (type: "success" | "error", text: string) => {
-    setMessage({ type, text });
-    window.setTimeout(() => setMessage(null), 5000);
+  const showToast = (type: ToastType, message: string) => {
+    setToast({ type, message });
+    setIsToastVisible(false);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    window.requestAnimationFrame(() => setIsToastVisible(true));
+    toastTimerRef.current = window.setTimeout(() => {
+      setIsToastVisible(false);
+      window.setTimeout(() => setToast(null), 1000);
+    }, 2800);
   };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    invoke<string>("get_recovery_email")
+      .then(setRecoveryEmail)
+      .catch((err) => showToast("error", err instanceof Error ? err.message : String(err)));
+  }, []);
 
   const validatePin = (value: string) => /^\d{6}$/.test(value);
 
   const handleChangePin = async (e: FormEvent) => {
     e.preventDefault();
     if (!validatePin(currentPin) || !validatePin(newPin)) {
-      showMessage("error", "PINs must be exactly 6 digits.");
+      showToast("error", "PINs must be exactly 6 digits.");
       return;
     }
     if (newPin !== confirmPin) {
-      showMessage("error", "The new PINs do not match.");
+      showToast("error", "The new PINs do not match.");
       return;
     }
 
@@ -43,37 +67,31 @@ export default function AccountSettings() {
       setCurrentPin("");
       setNewPin("");
       setConfirmPin("");
-      showMessage("success", "PIN changed successfully.");
+      showToast("success", "PIN changed successfully.");
     } catch (err) {
-      showMessage("error", err instanceof Error ? err.message : String(err));
+      showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
       setPinBusy(false);
     }
   };
 
-  const handleUpdateEmail = async (e: FormEvent) => {
+  const handleUpdateRecoveryEmail = async (e: FormEvent) => {
     e.preventDefault();
-    if (!smtpEmail.trim() || !smtpPassword.trim() || !recoveryEmail.trim()) {
-      showMessage("error", "Fill in the Gmail and recovery email fields.");
+    if (!recoveryEmail.trim()) {
+      showToast("error", "Recovery email cannot be empty.");
       return;
     }
 
     setEmailBusy(true);
     try {
-      const cleanedPassword = cleanAppPassword(smtpPassword);
-      await invoke("test_smtp", {
-        smtpEmail: smtpEmail.trim(),
-        smtpPassword: cleanedPassword,
-      });
-      await invoke("update_smtp_config", {
-        smtpEmail: smtpEmail.trim(),
-        smtpPassword: cleanedPassword,
+      await invoke("update_recovery_email", {
         recoveryEmail: recoveryEmail.trim(),
       });
-      setSmtpPassword("");
-      showMessage("success", "Recovery email settings updated.");
+      setIsRecoveryEditing(false);
+      setShowRecoveryEmail(false);
+      showToast("success", "Recovery email settings updated.");
     } catch (err) {
-      showMessage("error", err instanceof Error ? err.message : String(err));
+      showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
       setEmailBusy(false);
     }
@@ -120,16 +138,16 @@ export default function AccountSettings() {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in pb-12">
-      {message && (
-        <div className={`fixed top-20 right-8 z-50 px-5 py-3 rounded-lg shadow-lg border flex items-center gap-2.5 text-xs font-bold ${
-          message.type === "success"
-            ? "bg-green-50 text-[#15803d] border-green-200"
-            : "bg-red-50 text-[#ba1a1a] border-red-200"
-        }`}>
-          <span className="material-symbols-outlined text-lg">
-            {message.type === "success" ? "check_circle" : "error"}
+      {toast && (
+        <div className={`fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+          toast.type === "success"
+            ? "border border-green-500/30 bg-green-50 text-green-900"
+            : "border border-error/30 bg-error-container text-on-error-container"
+        } ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          <span className={`material-symbols-outlined ${toast.type === "success" ? "text-green-600" : "text-error"}`} style={{ fontSize: 18 }}>
+            {toast.type === "success" ? "check_circle" : "error"}
           </span>
-          <span>{message.text}</span>
+          <p className="text-xs font-bold">{toast.message}</p>
         </div>
       )}
 
@@ -181,28 +199,51 @@ export default function AccountSettings() {
           <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
             Recovery Email
           </h3>
-          <p className="text-xs text-secondary mt-1">Update the email account and destination for reset codes.</p>
+          <p className="text-xs text-secondary mt-1">This is where PIN reset codes are sent.</p>
         </div>
-        <form onSubmit={handleUpdateEmail} className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <div>
-            <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1.5">Email</label>
-            <input type="email" value={smtpEmail} onChange={(e) => setSmtpEmail(e.target.value)} className={inputClass} placeholder="lc.guidanceoffice@gmail.com" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1.5">Password</label>
-            {renderSecretInput(smtpPassword, setSmtpPassword, showSmtpPassword, () => setShowSmtpPassword((value) => !value), {
-              placeholder: "Password",
-            })}
-          </div>
-          <div>
+        <form onSubmit={handleUpdateRecoveryEmail} className="p-6 grid grid-cols-1 gap-4">
+          <div className="max-w-xl">
             <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1.5">Recovery Email</label>
-            <input type="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} className={inputClass} placeholder="Where reset codes are sent" />
+            <div className="flex gap-2">
+              <input
+                type={isRecoveryEditing ? "email" : "text"}
+                value={isRecoveryEditing || showRecoveryEmail ? recoveryEmail : maskEmail(recoveryEmail)}
+                onChange={(e) => setRecoveryEmail(e.target.value)}
+                disabled={!isRecoveryEditing}
+                className={`${inputClass} disabled:opacity-100 disabled:cursor-default`}
+                placeholder="Where reset codes are sent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowRecoveryEmail((value) => !value)}
+                aria-label={showRecoveryEmail ? "Hide recovery email" : "Show recovery email"}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-outline-variant text-secondary hover:text-primary transition-colors duration-500"
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  {showRecoveryEmail ? "visibility" : "visibility_off"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsRecoveryEditing((value) => !value)}
+                aria-label={isRecoveryEditing ? "Lock recovery email" : "Edit recovery email"}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-outline-variant transition-colors duration-500 ${
+                  isRecoveryEditing ? "bg-primary text-on-primary" : "text-secondary hover:text-primary"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  {isRecoveryEditing ? "lock" : "edit"}
+                </span>
+              </button>
+            </div>
           </div>
-          <div className="md:col-span-3 flex justify-end">
+          {isRecoveryEditing && (
+          <div className="flex justify-end">
             <button type="submit" disabled={emailBusy} className="bg-[#0B1E43] text-white font-bold text-xs py-2.5 px-5 rounded-lg disabled:opacity-60">
-              {emailBusy ? "Testing & Saving..." : "Test Email & Save"}
+              {emailBusy ? "Saving..." : "Save Recovery Email"}
             </button>
           </div>
+          )}
         </form>
       </div>
     </div>
