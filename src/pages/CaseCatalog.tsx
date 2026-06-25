@@ -526,14 +526,14 @@ export default function CaseCatalog() {
       worksheet.getCell("D2").value = "San Pablo City";
       worksheet.getCell("D3").value = "Guidance Office";
 
-      worksheet.getRow(1).height = 22;
-      worksheet.getRow(2).height = 18;
+      worksheet.getRow(1).height = 20;
+      worksheet.getRow(2).height = 17;
       worksheet.getRow(3).height = 27;
-      worksheet.getRow(4).height = 8;
+      worksheet.getRow(4).height = 6;
 
-      worksheet.getCell("D1").font = { name: "Georgia", bold: true, size: 16, color: { argb: "FF000000" } };
+      worksheet.getCell("D1").font = { name: "Georgia", bold: true, size: 13, color: { argb: "FF000000" } };
       worksheet.getCell("D2").font = { name: "Georgia", bold: true, size: 11, color: { argb: "FF000000" } };
-      worksheet.getCell("D3").font = { name: "Georgia", bold: true, size: 20, color: { argb: "FF000000" } };
+      worksheet.getCell("D3").font = { name: "Georgia", bold: true, size: 18, color: { argb: "FF000000" } };
 
       ["D1", "D2", "D3"].forEach((cellRef) => {
         worksheet.getCell(cellRef).alignment = { horizontal: "center", vertical: "middle" };
@@ -554,13 +554,13 @@ export default function CaseCatalog() {
       });
 
       worksheet.addImage(lcImageId, {
-        tl: { col: 1.15, row: 0.15 },
-        ext: { width: 66, height: 66 },
+        tl: { col: 5.7, row: 0 },
+        ext: { width: 86, height: 86 },
         editAs: "oneCell",
       });
       worksheet.addImage(guidanceImageId, {
-        tl: { col: 11.2, row: 0.15 },
-        ext: { width: 66, height: 66 },
+        tl: { col: 9.65, row: 0 },
+        ext: { width: 86, height: 86 },
         editAs: "oneCell",
       });
 
