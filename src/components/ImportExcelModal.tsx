@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 
@@ -71,7 +70,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
   const handleDownloadTemplate = async () => {
     try {
       setIsLoading(true);
-      const filePath = await invoke<string>("generate_import_template");
+      await invoke<string>("generate_import_template");
       showToast("Template saved to your Downloads folder!");
     } catch (e) {
       showToast(`Failed to generate template: ${e}`);

@@ -5,6 +5,8 @@ import { invoke } from "@tauri-apps/api/core";
 import DatePicker from "../components/DatePicker";
 import ExcelJS from "exceljs";
 import ImportExcelModal from "../components/ImportExcelModal";
+import lcOfficialLogo from "../assets/lc-official-logo.jpg";
+import guidanceLogo from "../assets/guidance-logo.png";
 
 interface StudentInfo {
   firstName: string;
@@ -37,6 +39,7 @@ const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
 const CASES_PER_PAGE = 20;
 const ELLIPSIS = "...";
 const MODAL_EXIT_MS = 200;
+const STATUS_FILTER_OPTIONS = ["All Statuses", "Pending", "Resolved", "Closed", "Reprimand"];
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
@@ -54,6 +57,8 @@ const getTodayDateString = () => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+const getCurrentMonthString = () => getTodayDateString().slice(0, 7);
+
 const formatIncidentDate = (dateStr: string) => {
   if (!dateStr) return "—";
   const parsed = new Date(dateStr);
@@ -68,6 +73,20 @@ const formatIncidentDate = (dateStr: string) => {
   });
 };
 
+const formatMonthFilter = (monthStr: string) => {
+  if (!monthStr) return "";
+  const parsed = new Date(`${monthStr}-01T00:00:00`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return monthStr;
+  }
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
 const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -78,6 +97,22 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
   }
 
   return btoa(binary);
+};
+
+const imageUrlToBase64 = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to load export logo: ${url}`);
+  }
+
+  const blob = await response.blob();
+
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 };
 
 const formatRelativeFiled = (dateStr: string) => {
@@ -132,6 +167,7 @@ const formatRelativeFiled = (dateStr: string) => {
 
 const isResolved = (progress: string) => progress.toLowerCase() === "resolved";
 const isPending = (progress: string) => progress.toLowerCase() === "pending";
+const isClosed = (progress: string) => progress.toLowerCase() === "closed";
 const isReprimand = (caseRecord: CaseRecord) =>
   caseRecord.sanction.toLowerCase().includes("reprimand") ||
   caseRecord.progress.toLowerCase().includes("reprimand");
@@ -141,6 +177,10 @@ const getBadgeClass = (progress: string) => {
 
   if (normalizedProgress === "resolved") {
     return "badge-resolved";
+  }
+
+  if (normalizedProgress === "closed") {
+    return "badge-closed";
   }
 
   if (normalizedProgress.includes("reprimand")) {
@@ -159,17 +199,21 @@ export default function CaseCatalog() {
   const [sortBy, setSortBy] = useState<"date_filed" | "date">("date_filed");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
+  const [monthFilter, setMonthFilter] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [isToastVisible, setIsToastVisible] = useState(false);
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [isDeleteConfirmClosing, setIsDeleteConfirmClosing] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
+  const statusDropdownRef = useRef<HTMLDivElement | null>(null);
   const todayDate = getTodayDateString();
+  const currentMonth = getCurrentMonthString();
 
   const loadCases = useCallback(async () => {
     try {
@@ -201,6 +245,20 @@ export default function CaseCatalog() {
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setIsStatusDropdownOpen(false);
+      }
+    };
+
+    if (isStatusDropdownOpen) {
+      document.addEventListener("click", handleClickOutside);
+    }
+
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [isStatusDropdownOpen]);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -254,8 +312,19 @@ export default function CaseCatalog() {
       result = result.filter(c => {
         if (statusFilter === "Pending") return isPending(c.progress);
         if (statusFilter === "Resolved") return isResolved(c.progress);
+        if (statusFilter === "Closed") return isClosed(c.progress);
         if (statusFilter === "Reprimand") return isReprimand(c);
         return true;
+      });
+    }
+
+    if (monthFilter) {
+      result = result.filter((c) => {
+        const dateVal = new Date(c.date_filed || c.date);
+        if (Number.isNaN(dateVal.getTime())) return false;
+        const year = dateVal.getFullYear();
+        const month = String(dateVal.getMonth() + 1).padStart(2, "0");
+        return `${year}-${month}` === monthFilter;
       });
     }
 
@@ -286,7 +355,7 @@ export default function CaseCatalog() {
     });
     
     return result;
-  }, [cases, searchQuery, sortBy, sortOrder, statusFilter, startDate, endDate]);
+  }, [cases, searchQuery, sortBy, sortOrder, statusFilter, monthFilter, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSortedCases.length / CASES_PER_PAGE));
   const paginatedCases = useMemo(() => {
@@ -321,7 +390,7 @@ export default function CaseCatalog() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, startDate, endDate]);
+  }, [searchQuery, statusFilter, monthFilter, startDate, endDate]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -364,15 +433,25 @@ export default function CaseCatalog() {
     setEndDate(value);
   };
 
+  const handleMonthFilterChange = (value: string) => {
+    if (value && value > currentMonth) {
+      setMonthFilter(currentMonth);
+      return;
+    }
+    setMonthFilter(value);
+  };
+
   const isFilterModified = 
     searchQuery !== "" || 
     statusFilter !== "All Statuses" ||
+    monthFilter !== "" ||
     startDate !== "" ||
     endDate !== "";
 
   const resetFilters = () => {
     setSearchQuery("");
     setStatusFilter("All Statuses");
+    setMonthFilter("");
     setStartDate("");
     setEndDate("");
   };
@@ -406,6 +485,9 @@ export default function CaseCatalog() {
     if (statusFilter !== "All Statuses") {
       filenameParts.push(statusFilter.toLowerCase());
     }
+    if (monthFilter) {
+      filenameParts.push(monthFilter.replace("-", ""));
+    }
     if (startDate || endDate) {
       const start = startDate ? startDate.replace(/-/g, "") : "Any";
       const end = endDate ? endDate.replace(/-/g, "") : "Any";
@@ -426,24 +508,79 @@ export default function CaseCatalog() {
       workbook.created = new Date();
 
       const worksheet = workbook.addWorksheet("Cases");
+      [10, 20, 20, 15, 16, 16, 16, 22, 22, 28, 42, 28, 18, 48].forEach((width, index) => {
+        worksheet.getColumn(index + 1).width = width;
+      });
 
-      // Add Header Information
-      worksheet.addRow(["Export from LC Guidance App"]);
+      // Official document header
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+
+      worksheet.mergeCells("D1:K1");
+      worksheet.mergeCells("D2:K2");
+      worksheet.mergeCells("D3:K3");
+
+      worksheet.getCell("D1").value = "LAGUNA COLLEGE";
+      worksheet.getCell("D2").value = "San Pablo City";
+      worksheet.getCell("D3").value = "Guidance Office";
+
+      worksheet.getRow(1).height = 22;
+      worksheet.getRow(2).height = 18;
+      worksheet.getRow(3).height = 27;
+      worksheet.getRow(4).height = 8;
+
+      worksheet.getCell("D1").font = { name: "Georgia", bold: true, size: 16, color: { argb: "FF000000" } };
+      worksheet.getCell("D2").font = { name: "Georgia", bold: true, size: 11, color: { argb: "FF000000" } };
+      worksheet.getCell("D3").font = { name: "Georgia", bold: true, size: 20, color: { argb: "FF000000" } };
+
+      ["D1", "D2", "D3"].forEach((cellRef) => {
+        worksheet.getCell(cellRef).alignment = { horizontal: "center", vertical: "middle" };
+      });
+
+      const [lcLogoBase64, guidanceLogoBase64] = await Promise.all([
+        imageUrlToBase64(lcOfficialLogo),
+        imageUrlToBase64(guidanceLogo),
+      ]);
+
+      const lcImageId = workbook.addImage({
+        base64: lcLogoBase64,
+        extension: "jpeg",
+      });
+      const guidanceImageId = workbook.addImage({
+        base64: guidanceLogoBase64,
+        extension: "png",
+      });
+
+      worksheet.addImage(lcImageId, {
+        tl: { col: 1.15, row: 0.15 },
+        ext: { width: 66, height: 66 },
+        editAs: "oneCell",
+      });
+      worksheet.addImage(guidanceImageId, {
+        tl: { col: 11.2, row: 0.15 },
+        ext: { width: 66, height: 66 },
+        editAs: "oneCell",
+      });
+
       worksheet.addRow([`Date of Export: ${new Date().toLocaleDateString()}`]);
-      
+
       let filterText = "Filters: None";
       const activeFilters = [];
       if (statusFilter !== "All Statuses") activeFilters.push(`Status: ${statusFilter}`);
+      if (monthFilter) activeFilters.push(`Month: ${formatMonthFilter(monthFilter)}`);
       if (startDate || endDate) activeFilters.push(`Date Range: ${startDate || 'Any'} to ${endDate || 'Any'}`);
       if (searchQuery) activeFilters.push(`Search: ${searchQuery}`);
       if (activeFilters.length > 0) filterText = `Filters: ${activeFilters.join(" | ")}`;
       worksheet.addRow([filterText]);
       worksheet.addRow([]); // Empty row
 
-      worksheet.views = [{ state: "frozen", ySplit: 5 }];
-      [10, 20, 20, 15, 16, 16, 16, 22, 22, 28, 42, 28, 18, 48].forEach((width, index) => {
-        worksheet.getColumn(index + 1).width = width;
-      });
+      worksheet.mergeCells("A5:N5");
+      worksheet.mergeCells("A6:N6");
+      worksheet.getCell("A5").font = { bold: true, color: { argb: "FF000000" } };
+      worksheet.getCell("A6").font = { italic: true, color: { argb: "FF4B5563" } };
+      worksheet.views = [{ state: "frozen", ySplit: 8 }];
 
       const headers = [
         "Case ID",
@@ -542,11 +679,10 @@ export default function CaseCatalog() {
                 // Position side-by-side: 65x65px thumbnail
                 // Space them out by 75px (65px img + 10px margin)
                 const xOffsetPx = 10 + (imgIndex * 75);
-                const colOff = xOffsetPx * 9525;
-                const rowOff = 5 * 9525;
-                
+                const proofsColumnWidthPx = 336;
+
                 worksheet.addImage(imageId, {
-                  tl: { col: 13, row: rIndex - 1, colOff, rowOff },
+                  tl: { col: 13 + (xOffsetPx / proofsColumnWidthPx), row: rIndex - 0.95 },
                   ext: { width: 65, height: 65 },
                   editAs: 'oneCell'
                 });
@@ -560,10 +696,7 @@ export default function CaseCatalog() {
       });
 
       worksheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
-        if (rowNumber <= 4) {
-          if (rowNumber === 1) {
-            row.getCell(1).font = { bold: true, size: 14 };
-          }
+        if (rowNumber <= 7) {
           return;
         }
         row.eachCell((cell: ExcelJS.Cell) => {
@@ -657,25 +790,77 @@ export default function CaseCatalog() {
           )}
         </div>
 
-
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-on-surface-variant whitespace-nowrap min-w-[52px]">Status</span>
-          
-          {["All Statuses", "Pending", "Resolved", "Reprimand"].map((status) => (
+          <div className="relative" ref={statusDropdownRef}>
             <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`inline-flex items-center px-3 py-1.5 rounded-full border text-[13px] whitespace-nowrap transition-all duration-500 select-none ${
-                statusFilter === status 
-                  ? "bg-[#EEEDFE] border-[#AFA9EC] text-[#3C3489]" 
-                  : "bg-surface border-outline-variant text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+              type="button"
+              onClick={() => setIsStatusDropdownOpen((open) => !open)}
+              className={`group inline-flex h-[38px] w-[205px] items-center gap-2 rounded-full border bg-surface px-3 text-left text-[13px] transition-all duration-300 ease-out ${
+                isStatusDropdownOpen
+                  ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
+                  : "border-outline-variant hover:border-primary/60 hover:bg-surface-container"
               }`}
             >
-              {status === "All Statuses" ? "All" : status}
+              <span className="material-symbols-outlined text-secondary transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 16 }}>filter_list</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-secondary">Status</span>
+              <span className="min-w-0 flex-1 truncate font-bold text-on-surface">
+                {statusFilter === "All Statuses" ? "All" : statusFilter}
+              </span>
+              <span
+                className={`material-symbols-outlined text-secondary transition-transform duration-300 ${
+                  isStatusDropdownOpen ? "rotate-180" : "rotate-0"
+                }`}
+                style={{ fontSize: 18 }}
+              >
+                expand_more
+              </span>
             </button>
-          ))}
+
+            {isStatusDropdownOpen && (
+              <div className="absolute left-0 top-full z-30 mt-2 w-[205px] overflow-hidden rounded-xl border border-outline-variant bg-surface p-1.5 shadow-lg filter-dropdown-enter">
+                {STATUS_FILTER_OPTIONS.map((status) => {
+                  const isSelected = statusFilter === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => {
+                        setStatusFilter(status);
+                        setIsStatusDropdownOpen(false);
+                      }}
+                      className={`group/status flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${
+                        isSelected
+                          ? "bg-[#EEEDFE] text-[#3C3489]"
+                          : "text-on-surface hover:bg-surface-container"
+                      }`}
+                    >
+                      <span className={`h-2 w-2 rounded-full transition-colors duration-300 ${
+                        isSelected ? "bg-[#7B6FE8]" : "bg-outline-variant group-hover/status:bg-primary"
+                      }`} />
+                      <span className="flex-1 font-medium">{status === "All Statuses" ? "All" : status}</span>
+                      {isSelected && (
+                        <span className="material-symbols-outlined text-[#7B6FE8]" style={{ fontSize: 16 }}>check</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <div className="w-[2px] h-5 bg-outline-variant mx-1"></div>
+
+          <label className="group inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-[13px] text-on-surface-variant transition-all duration-300 ease-out hover:border-primary/60 hover:bg-surface-container focus-within:border-primary focus-within:bg-surface-container focus-within:ring-2 focus-within:ring-primary/20 focus-within:shadow-sm">
+            <span className="material-symbols-outlined text-secondary transition-colors duration-300 group-hover:text-primary group-focus-within:text-primary" style={{ fontSize: 16 }}>calendar_month</span>
+            <span className="font-medium whitespace-nowrap">Month</span>
+            <input
+              type="month"
+              value={monthFilter}
+              max={currentMonth}
+              onChange={(e) => handleMonthFilterChange(e.target.value)}
+              className="bg-transparent text-on-surface focus:outline-none text-[13px] transition-colors duration-300"
+            />
+          </label>
 
           <DatePicker
             value={startDate}
@@ -712,6 +897,17 @@ export default function CaseCatalog() {
                 <span className="text-on-surface-variant">Status:</span>
                 <span className="font-medium">{statusFilter}</span>
                 <button onClick={() => setStatusFilter("All Statuses")} className="text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors duration-500">
+                  <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: '14px' }}>close</span>
+                </button>
+              </div>
+            )}
+
+            {monthFilter && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-xs text-on-surface">
+                <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '14px' }}>calendar_month</span>
+                <span className="text-on-surface-variant">Month:</span>
+                <span className="font-medium">{formatMonthFilter(monthFilter)}</span>
+                <button onClick={() => setMonthFilter("")} className="text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors duration-500">
                   <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: '14px' }}>close</span>
                 </button>
               </div>

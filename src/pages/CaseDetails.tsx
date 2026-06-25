@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import html2pdf from "html2pdf.js";
-import lcLogo from "../assets/lc-logo.png";
+import lcOfficialLogo from "../assets/lc-official-logo.jpg";
+import guidanceLogo from "../assets/guidance-logo.png";
 
 
 interface StudentInfo {
@@ -84,7 +85,6 @@ const PROGRESS_OPTIONS = [
   {
     value: "Pending",
     label: "Pending",
-    desc: "Under review",
     dot: "#854F0B",
     bg: "#FAEEDA",
     border: "#FAC775",
@@ -93,7 +93,6 @@ const PROGRESS_OPTIONS = [
   {
     value: "Reprimand",
     label: "Reprimand",
-    desc: "Action issued",
     dot: "#A32D2D",
     bg: "#FCEBEB",
     border: "#F7C1C1",
@@ -102,11 +101,18 @@ const PROGRESS_OPTIONS = [
   {
     value: "Resolved",
     label: "Resolved",
-    desc: "Case closed",
     dot: "#0F6E56",
     bg: "#E1F5EE",
     border: "#9FE1CB",
     text: "#085041",
+  },
+  {
+    value: "Closed",
+    label: "Closed",
+    dot: "#4D5A66",
+    bg: "#EDF3F8",
+    border: "#C8D7E4",
+    text: "#35414C",
   },
 ];
 
@@ -598,58 +604,65 @@ export default function CaseDetails() {
 
       {/* Main Guidance Card Document */}
       <div className="case-details-document bg-[#FAF9F5] dark:bg-surface-container-low border border-outline-variant rounded shadow-[0px_1px_3px_rgba(0,0,0,0.05)] relative overflow-hidden flex flex-col mb-8 print:mb-0">
-        {/* Banner with Laguna College Header */}
-        <div className="px-8 py-6 border-b border-outline-variant flex justify-between items-center bg-white dark:bg-surface shrink-0">
-          <div className="flex items-center gap-4">
-            <img src={lcLogo} alt="Laguna College Logo" className="w-16 h-16 object-contain shrink-0" />
-            <div className="min-w-0">
-              <h2 className="whitespace-nowrap text-[18px] leading-[20px] text-primary dark:text-primary-fixed-dim font-bold" style={{ fontFamily: "Georgia, serif" }}>Laguna College</h2>
-              <p className="font-label-caps text-[11px] text-secondary dark:text-secondary-fixed-dim uppercase tracking-wider leading-none mt-1.5">GUIDANCE OFFICE</p>
+        {/* Official document header */}
+        <div className="px-8 py-5 border-b border-outline-variant bg-white shrink-0">
+          <div className="grid grid-cols-[92px_1fr_92px] items-center gap-6">
+            <img src={lcOfficialLogo} alt="Laguna College Logo" className="w-[78px] h-[78px] object-contain justify-self-start" />
+            <div className="text-center text-black" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+              <h2 className="m-0 text-[18px] leading-[20px] font-black uppercase tracking-[0.02em] text-black">LAGUNA COLLEGE</h2>
+              <p className="m-0 mt-1 text-[13px] leading-[15px] font-bold text-black">San Pablo City</p>
+              <p className="m-0 mt-1 text-[23px] leading-[25px] font-black text-black">Guidance Office</p>
             </div>
+            <img src={guidanceLogo} alt="Guidance Office Logo" className="w-[78px] h-[78px] object-contain justify-self-end" />
           </div>
-          <div className="pr-4">
-            {isEditing ? (
-              <div className="flex flex-col items-end gap-1.5">
-                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mr-2">Progress</label>
-                <div className="flex gap-2">
-                  {PROGRESS_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setEditForm({ ...editForm, progress: opt.value })}
-                      className={`center-fill-option px-3 py-1.5 rounded font-bold text-xs border transition-all duration-500 text-left ${
-                        editForm.progress.toLowerCase() === opt.value.toLowerCase() ? "center-fill-option-selected" : ""
-                      }`}
-                      style={editForm.progress.toLowerCase() === opt.value.toLowerCase()
-                        ? { background: opt.bg, borderColor: opt.dot, color: opt.text }
-                        : {
-                          background: "transparent",
-                          borderColor: "var(--color-outline-variant)",
-                          color: "var(--color-secondary)",
-                          ["--fill-hover-bg" as string]: opt.bg,
-                          ["--fill-hover-border" as string]: opt.border,
+
+          {!isExporting && (
+            <div className="mt-4 flex justify-end print:hidden">
+              {isEditing ? (
+                <div className="flex flex-col items-end gap-1.5">
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mr-2">Progress</label>
+                  <div className="flex gap-2">
+                    {PROGRESS_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, progress: opt.value })}
+                        className={`center-fill-option px-3 py-1.5 rounded font-bold text-xs border transition-all duration-500 text-center ${
+                          editForm.progress.toLowerCase() === opt.value.toLowerCase() ? "center-fill-option-selected" : ""
+                        }`}
+                        style={editForm.progress.toLowerCase() === opt.value.toLowerCase()
+                          ? { background: opt.bg, borderColor: opt.dot, color: opt.text }
+                          : {
+                            background: "transparent",
+                            borderColor: "var(--color-outline-variant)",
+                            color: "var(--color-secondary)",
+                            ["--fill-hover-bg" as string]: opt.bg,
+                            ["--fill-hover-border" as string]: opt.border,
+                          }
                         }
-                      }
-                    >
-                      <span className="relative z-10 transition-colors duration-500">{opt.label}</span>
-                    </button>
-                  ))}
+                      >
+                        <span className="relative z-10 transition-colors duration-500">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : !isExporting ? (
-              <div
-                className={`pdf-status-indicator border-[3px] font-black text-lg px-6 py-1.5 rounded uppercase tracking-widest transform -rotate-[6deg] inline-block select-none ${
-                  caseRecord.progress.toLowerCase() === "resolved"
-                    ? "border-[#15803d] text-[#15803d] dark:border-[#34A06A]/70 dark:text-[#34A06A]"
-                    : caseRecord.progress.toLowerCase() === "reprimand"
-                    ? "border-[#dc2626] text-[#dc2626] dark:border-[#ef4444]/70 dark:text-[#ef4444]"
-                    : "border-[#d97706] text-[#d97706] dark:border-[#D9A23B]/70 dark:text-[#D9A23B]"
-                }`}
-              >
-                {caseRecord.progress}
-              </div>
-            ) : null}
-          </div>
+              ) : (
+                <div
+                  className={`pdf-status-indicator border-[3px] font-black text-lg px-6 py-1.5 rounded uppercase tracking-widest transform -rotate-[6deg] inline-block select-none ${
+                    caseRecord.progress.toLowerCase() === "resolved"
+                      ? "border-[#15803d] text-[#15803d] dark:border-[#34A06A]/70 dark:text-[#34A06A]"
+                      : caseRecord.progress.toLowerCase() === "closed"
+                      ? "border-[#4b5563] text-[#4b5563] dark:border-[#9ca3af]/70 dark:text-[#9ca3af]"
+                      : caseRecord.progress.toLowerCase() === "reprimand"
+                      ? "border-[#dc2626] text-[#dc2626] dark:border-[#ef4444]/70 dark:text-[#ef4444]"
+                      : "border-[#d97706] text-[#d97706] dark:border-[#D9A23B]/70 dark:text-[#D9A23B]"
+                  }`}
+                >
+                  {caseRecord.progress}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Content Body Grid */}

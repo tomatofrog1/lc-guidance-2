@@ -165,7 +165,7 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
 
       {/* Floating Popover Calendar */}
       {isOpen && (
-        <div className="absolute z-30 mt-2 p-3 bg-surface border border-outline-variant rounded-xl shadow-lg w-[280px] top-full left-0 md:left-auto md:right-0 animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute z-30 mt-2 p-3 bg-surface border border-outline-variant rounded-xl shadow-lg w-[280px] top-full left-0 md:left-auto md:right-0 filter-dropdown-enter">
           {/* Header */}
           <div className="flex items-center justify-between mb-3 px-1">
             <button
