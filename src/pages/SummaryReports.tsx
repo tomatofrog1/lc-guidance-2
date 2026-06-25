@@ -21,7 +21,24 @@ interface CaseRecord {
   progress: string;
 }
 
+type ReportView = "monthly" | "yearly";
+
+interface TimeReportPoint {
+  label: string;
+  total: number;
+  completed: number;
+  reprimand: number;
+  pending: number;
+  other: number;
+}
+
 const formatCaseId = (id: number) => `LC-${id.toString().padStart(4, "0")}`;
+
+const getAcademicYearStart = (date: Date) => {
+  return date.getMonth() >= 5 ? date.getFullYear() : date.getFullYear() - 1;
+};
+
+const formatAcademicYear = (startYear: number) => `A.Y. ${startYear}-${startYear + 1}`;
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
@@ -59,6 +76,14 @@ const getBadgeClassAndColor = (progress: string) => {
       dot: "bg-secondary"
     };
   }
+  if (normalizedProgress === "closed") {
+    return {
+      bg: "bg-surface-container-high",
+      text: "text-on-surface-variant",
+      border: "border-outline-variant",
+      dot: "bg-outline"
+    };
+  }
   if (normalizedProgress.includes("reprimand")) {
     return { 
       bg: "bg-tertiary-container", 
@@ -78,6 +103,7 @@ const getBadgeClassAndColor = (progress: string) => {
 export default function SummaryReports() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [reportView, setReportView] = useState<ReportView>("monthly");
 
   useEffect(() => {
     const loadCases = async () => {
@@ -122,51 +148,88 @@ export default function SummaryReports() {
     
     const mostCommonPercentage = total > 0 ? ((mostCommonCount / total) * 100).toFixed(0) : "0";
     
-    const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
-    const topTypes = sortedTypes.slice(0, 4).map(t => ({
-      name: t[0],
-      count: t[1],
-      percentage: ((t[1] / total) * 100).toFixed(0)
-    }));
-    
     const recentCases = [...cases].sort((a, b) => new Date(b.date_filed || b.date).getTime() - new Date(a.date_filed || a.date).getTime()).slice(0, 5);
 
-    const monthCounts: Record<string, number> = {};
-    const months = [];
     const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthName = d.toLocaleDateString(undefined, { month: 'short' });
-        months.push(monthName);
-        monthCounts[monthName] = 0;
-    }
-    
+    const currentAcademicYearStart = getAcademicYearStart(now);
+    const currentAcademicYearLabel = formatAcademicYear(currentAcademicYearStart);
+    const monthlyReports: TimeReportPoint[] = Array.from({ length: 12 }, (_, monthIndex) => ({
+      label: new Date(currentAcademicYearStart, monthIndex + 5, 1).toLocaleDateString(undefined, { month: "short", year: "2-digit" }),
+      total: 0,
+      completed: 0,
+      reprimand: 0,
+      pending: 0,
+      other: 0,
+    }));
+    const yearlyReportMap = new Map<number, TimeReportPoint>();
+    yearlyReportMap.set(currentAcademicYearStart, {
+      label: currentAcademicYearLabel,
+      total: 0,
+      completed: 0,
+      reprimand: 0,
+      pending: 0,
+      other: 0,
+    });
+
+    const addCaseToReport = (report: TimeReportPoint, progress: string) => {
+      const normalizedProgress = progress.toLowerCase();
+      report.total += 1;
+
+      if (normalizedProgress === "resolved" || normalizedProgress === "closed") {
+        report.completed += 1;
+      } else if (normalizedProgress.includes("reprimand")) {
+        report.reprimand += 1;
+      } else if (normalizedProgress === "pending") {
+        report.pending += 1;
+      } else {
+        report.other += 1;
+      }
+    };
+
     cases.forEach(c => {
-        const d = new Date(c.date_filed || c.date);
-        if (!isNaN(d.getTime())) {
-            const m = d.toLocaleDateString(undefined, { month: 'short' });
-            if (monthCounts[m] !== undefined) {
-                monthCounts[m]++;
-            }
+      const d = new Date(c.date_filed || c.date);
+      if (isNaN(d.getTime())) return;
+
+      const academicYearStart = getAcademicYearStart(d);
+      if (academicYearStart === currentAcademicYearStart) {
+        const monthOffset = (d.getFullYear() - currentAcademicYearStart) * 12 + d.getMonth() - 5;
+        if (monthOffset >= 0 && monthOffset < monthlyReports.length) {
+          addCaseToReport(monthlyReports[monthOffset], c.progress);
         }
+      }
+
+      if (!yearlyReportMap.has(academicYearStart)) {
+        yearlyReportMap.set(academicYearStart, {
+          label: formatAcademicYear(academicYearStart),
+          total: 0,
+          completed: 0,
+          reprimand: 0,
+          pending: 0,
+          other: 0,
+        });
+      }
+
+      const yearlyReport = yearlyReportMap.get(academicYearStart);
+      if (yearlyReport) {
+        addCaseToReport(yearlyReport, c.progress);
+      }
     });
-    
-    const trendData = months.map(m => monthCounts[m]);
-    const maxTrend = Math.max(...trendData, 10);
-    
-    const points = trendData.map((val, i) => {
-        const x = (i / 5) * 800;
-        const y = 250 - ((val / maxTrend) * 220); 
-        return `${x},${y}`;
-    }).join(" ");
-    
-    const trendPoints = trendData.map((val, i) => {
-        return {
-            x: (i / 5) * 800,
-            y: 250 - ((val / maxTrend) * 220),
-            val
-        };
-    });
+
+    const yearlyReports = Array.from(yearlyReportMap.entries())
+      .sort(([yearA], [yearB]) => yearA - yearB)
+      .map(([, report]) => report);
+
+    const currentYearTotal = monthlyReports.reduce((sum, report) => sum + report.total, 0);
+
+    const peakMonthlyReport = monthlyReports.reduce((peak, report) =>
+      report.total > peak.total ? report : peak, monthlyReports[0]);
+    const peakYearlyReport = yearlyReports.reduce((peak, report) =>
+      report.total > peak.total ? report : peak, yearlyReports[0]);
+
+    const averageMonthlyCases = currentYearTotal > 0 ? (currentYearTotal / 12).toFixed(1) : "0.0";
+    const averageYearlyCases = yearlyReports.length > 0
+      ? (yearlyReports.reduce((sum, report) => sum + report.total, 0) / yearlyReports.length).toFixed(1)
+      : "0.0";
 
     return {
       total,
@@ -175,21 +238,27 @@ export default function SummaryReports() {
       resolutionRate,
       mostCommonType,
       mostCommonPercentage,
-      topTypes,
       recentCases,
-      trendData,
-      months,
-      trendPolyline: points,
-      trendPoints
+      monthlyReports,
+      yearlyReports,
+      currentAcademicYearLabel,
+      peakMonthlyReport,
+      peakYearlyReport,
+      averageMonthlyCases,
+      averageYearlyCases,
     };
   }, [cases]);
 
-  const typeColors = [
-      { bg: 'bg-primary', hex: '#002f87' },
-      { bg: 'bg-primary-container', hex: '#dbe1ff' },
-      { bg: 'bg-surface-tint', hex: '#3a59b1' },
-      { bg: 'bg-on-primary-container', hex: '#001443' }
-  ];
+  const activeReportData = reportView === "monthly" ? stats.monthlyReports : stats.yearlyReports;
+  const activeReportTotal = activeReportData.reduce((sum, report) => sum + report.total, 0);
+  const activeReportCompleted = activeReportData.reduce((sum, report) => sum + report.completed, 0);
+  const activeReportPending = activeReportData.reduce((sum, report) => sum + report.pending, 0);
+  const activeReportReprimand = activeReportData.reduce((sum, report) => sum + report.reprimand, 0);
+  const activeReportOther = activeReportData.reduce((sum, report) => sum + report.other, 0);
+  const activeReportPeak = reportView === "monthly" ? stats.peakMonthlyReport : stats.peakYearlyReport;
+  const activeReportAverage = reportView === "monthly" ? stats.averageMonthlyCases : stats.averageYearlyCases;
+  const maxReportTotal = Math.max(1, ...activeReportData.map((report) => report.total));
+  const reportChartTicks = [1, 0.75, 0.5, 0.25, 0];
 
   return (
     <>
@@ -247,71 +316,143 @@ export default function SummaryReports() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="data-card p-6 lg:col-span-2 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-section-header text-section-header text-primary">Filing Volume Trend (Last 6 Months)</h3>
-            <button className="text-secondary hover:text-primary transition-colors duration-500">
-              <span className="material-symbols-outlined transition-colors duration-500">more_horiz</span>
-            </button>
+      <div className="data-card p-6 flex flex-col">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h3 className="font-section-header text-section-header text-primary">Monthly & Yearly Reports</h3>
+            <p className="text-body-md font-body-md text-secondary mt-1">
+              {reportView === "monthly" ? `${stats.currentAcademicYearLabel} monthly activity` : "Academic year activity"}
+            </p>
           </div>
-          <div className="flex-grow relative w-full min-h-[300px] flex items-end pt-8">
-            <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 800 300">
-              <line stroke="#CBD5E1" strokeDasharray="4" strokeWidth="2" x1="0" x2="800" y1="50" y2="50"></line>
-              <line stroke="#CBD5E1" strokeDasharray="4" strokeWidth="2" x1="0" x2="800" y1="125" y2="125"></line>
-              <line stroke="#CBD5E1" strokeDasharray="4" strokeWidth="2" x1="0" x2="800" y1="200" y2="200"></line>
-              <line stroke="#CBD5E1" strokeWidth="2" x1="0" x2="800" y1="275" y2="275"></line>
-              <defs>
-                <linearGradient id="areaGrad" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#002f87" stopOpacity="0.2"></stop>
-                  <stop offset="100%" stopColor="#002f87" stopOpacity="0"></stop>
-                </linearGradient>
-              </defs>
-              <polygon points={`0,275 ${stats.trendPolyline} 800,275`} fill="url(#areaGrad)"></polygon>
-              <polyline points={stats.trendPolyline} fill="none" stroke="#002f87" strokeWidth="3"></polyline>
-              {stats.trendPoints.map((p, i) => (
-                  <circle key={i} cx={p.x} cy={p.y} fill="#ffffff" r="4" stroke="#002f87" strokeWidth="2"></circle>
-              ))}
-            </svg>
-            <div className="absolute bottom-0 left-0 w-full flex justify-between text-body-md font-body-md text-secondary px-4 mt-2 -mb-6">
-              {stats.months.map((m, i) => (
-                  <span key={i}>{m}</span>
-              ))}
+          <div className="inline-flex self-start overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low">
+            {([
+              { value: "monthly", label: "Monthly" },
+              { value: "yearly", label: "Yearly" },
+            ] as const).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setReportView(option.value)}
+                className={`px-4 py-2 text-xs font-bold transition-colors duration-500 ${
+                  reportView === option.value
+                    ? "bg-primary text-on-primary"
+                    : "text-secondary hover:bg-surface-container hover:text-on-surface"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-4 border-y border-surface-variant py-4">
+          <div>
+            <p className="font-label-caps text-label-caps text-secondary uppercase">Filed</p>
+            <p className="mt-1 font-section-header text-section-header text-on-background">{activeReportTotal}</p>
+          </div>
+          <div>
+            <p className="font-label-caps text-label-caps text-secondary uppercase">Completed</p>
+            <p className="mt-1 font-section-header text-section-header text-[#0F6E56] dark:text-[#34A06A]">{activeReportCompleted}</p>
+          </div>
+          <div>
+            <p className="font-label-caps text-label-caps text-secondary uppercase">Peak</p>
+            <p className="mt-1 font-section-header text-section-header text-on-background">
+              {activeReportPeak?.label ?? "None"} <span className="text-body-md font-body-md text-secondary">({activeReportPeak?.total ?? 0})</span>
+            </p>
+          </div>
+          <div>
+            <p className="font-label-caps text-label-caps text-secondary uppercase">Average</p>
+            <p className="mt-1 font-section-header text-section-header text-on-background">{activeReportAverage}</p>
+          </div>
+        </div>
+
+        <div className="mt-6 overflow-x-auto pb-2">
+          <div
+            className="min-w-[720px]"
+            style={{ minWidth: reportView === "monthly" ? 760 : Math.max(560, activeReportData.length * 96) }}
+          >
+            <div className="grid grid-cols-[52px_1fr] gap-3">
+              <div className="h-[280px] flex flex-col justify-between py-1 text-right text-[10px] font-bold text-secondary">
+                {reportChartTicks.map((tick) => (
+                  <span key={tick}>{Math.round(maxReportTotal * tick)}</span>
+                ))}
+              </div>
+              <div className="relative h-[280px] border-l border-b border-outline-variant">
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                  {reportChartTicks.map((tick, index) => (
+                    <div
+                      key={tick}
+                      className={`${index === reportChartTicks.length - 1 ? "" : "border-t border-dashed border-outline-variant/60"} h-0`}
+                    />
+                  ))}
+                </div>
+                <div className="relative z-10 h-full flex items-end justify-between gap-3 px-4">
+                  {activeReportData.map((report) => {
+                    const barHeight = report.total > 0 ? Math.max(8, (report.total / maxReportTotal) * 100) : 2;
+                    const segments = [
+                      { key: "completed", value: report.completed, color: "#0F6E56" },
+                      { key: "reprimand", value: report.reprimand, color: "#A32D2D" },
+                      { key: "pending", value: report.pending, color: "#D9A23B" },
+                      { key: "other", value: report.other, color: "#6B7280" },
+                    ].filter((segment) => segment.value > 0);
+
+                    return (
+                      <div key={report.label} className="h-full flex-1 min-w-[42px] flex flex-col items-center justify-end">
+                        <span className="mb-2 text-[10px] font-bold text-secondary">{report.total}</span>
+                        <div
+                          className="relative w-full max-w-[52px] rounded-t-md bg-surface-container-high border border-outline-variant/50 overflow-hidden"
+                          style={{ height: `${barHeight}%` }}
+                        >
+                          <div className="absolute inset-x-0 bottom-0 top-0 flex flex-col-reverse">
+                            {segments.length > 0 ? segments.map((segment) => (
+                              <div
+                                key={segment.key}
+                                style={{
+                                  height: `${(segment.value / report.total) * 100}%`,
+                                  backgroundColor: segment.color,
+                                }}
+                              />
+                            )) : (
+                              <div className="h-full bg-surface-container-high" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div />
+              <div className="flex justify-between gap-3 px-4 pt-2">
+                {activeReportData.map((report) => (
+                  <span key={report.label} className="flex-1 min-w-[42px] text-center text-[10px] font-bold text-secondary">
+                    {report.label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="data-card p-6 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-section-header text-section-header text-primary">Case Distribution</h3>
-            <button className="text-secondary hover:text-primary transition-colors duration-500">
-              <span className="material-symbols-outlined transition-colors duration-500">more_horiz</span>
-            </button>
-          </div>
-          <div className="flex-grow flex flex-col justify-center items-center">
-            <div className="relative w-48 h-48 rounded-full border-[24px] border-surface-container flex items-center justify-center mb-6" style={{ borderTopColor: typeColors[3]?.hex, borderRightColor: typeColors[0]?.hex, borderBottomColor: typeColors[1]?.hex, borderLeftColor: typeColors[2]?.hex, transform: 'rotate(-45deg)' }}>
-              <div className="absolute inset-0 flex items-center justify-center" style={{ transform: 'rotate(45deg)' }}>
-                <div className="text-center">
-                  <span className="block font-display-title text-display-title text-on-background leading-none">100%</span>
-                  <span className="block font-label-caps text-label-caps text-secondary mt-1">TOTAL</span>
-                </div>
-              </div>
-            </div>
-            <div className="w-full flex flex-col gap-3">
-              {stats.topTypes.map((type, i) => (
-                  <div key={type.name} className="flex items-center justify-between text-body-md font-body-md">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-sm ${typeColors[i % typeColors.length].bg}`}></div>
-                      <span className="text-on-background line-clamp-1">{type.name}</span>
-                    </div>
-                    <span className="font-medium text-secondary">{type.percentage}%</span>
-                  </div>
-              ))}
-              {stats.topTypes.length === 0 && (
-                  <div className="text-center text-secondary text-body-md">No case data</div>
-              )}
-            </div>
-          </div>
+        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-secondary">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#0F6E56]" />
+            Resolved / Closed
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#A32D2D]" />
+            Reprimand ({activeReportReprimand})
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#D9A23B]" />
+            Pending ({activeReportPending})
+          </span>
+          {activeReportOther > 0 && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-[#6B7280]" />
+              Other ({activeReportOther})
+            </span>
+          )}
         </div>
       </div>
 

@@ -83,6 +83,10 @@
     --badge-resolved-bg: #dcfce7;
     --badge-resolved-text: #15803d;
     --badge-resolved-border: #22c55e;
+
+    --badge-closed-bg: #e5e7eb;
+    --badge-closed-text: #4b5563;
+    --badge-closed-border: #9ca3af;
     
     --badge-pending-bg: #fef3c7;
     --badge-pending-text: #b45309;
@@ -123,6 +127,10 @@
     --badge-resolved-bg: rgba(52, 160, 106, 0.15);
     --badge-resolved-text: #34A06A;
     --badge-resolved-border: rgba(52, 160, 106, 0.5);
+
+    --badge-closed-bg: rgba(156, 163, 175, 0.15);
+    --badge-closed-text: #9ca3af;
+    --badge-closed-border: rgba(156, 163, 175, 0.5);
     
     --badge-pending-bg: rgba(217, 162, 59, 0.15);
     --badge-pending-text: #D9A23B;
@@ -253,6 +261,12 @@
     will-change: opacity, transform;
   }
 
+  .filter-dropdown-enter {
+    animation: filter-dropdown-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: top center;
+    will-change: opacity, transform;
+  }
+
   .app-toast {
     gap: 0.625rem !important;
     max-width: min(420px, calc(100vw - 2.5rem));
@@ -365,6 +379,11 @@
     color: var(--badge-resolved-text);
     background-color: var(--badge-resolved-bg);
     border-color: var(--badge-resolved-border);
+  }
+  .badge-closed {
+    color: var(--badge-closed-text);
+    background-color: var(--badge-closed-bg);
+    border-color: var(--badge-closed-border);
   }
   .badge-reprimand {
     color: var(--badge-reprimand-text);
@@ -494,6 +513,18 @@ input[type="password"]::-webkit-caps-lock-indicator {
   to {
     opacity: 0;
     transform: translateX(16px);
+  }
+}
+
+@keyframes filter-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

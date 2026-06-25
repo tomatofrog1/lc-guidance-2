@@ -20,6 +20,7 @@ type StudentInfo = {
   level: string;
   section: string;
   adviser: string;
+  sanction: string;
 };
 
 // ── Case category data ──────────────────────────────────────────────────────
@@ -98,7 +99,6 @@ const PROGRESS_OPTIONS = [
   {
     value: "Pending",
     label: "Pending",
-    desc: "Under review",
     dot: "#854F0B",
     bg: "#FAEEDA",
     border: "#FAC775",
@@ -107,7 +107,6 @@ const PROGRESS_OPTIONS = [
   {
     value: "Reprimand",
     label: "Reprimand",
-    desc: "Action issued",
     dot: "#A32D2D",
     bg: "#FCEBEB",
     border: "#F7C1C1",
@@ -116,11 +115,18 @@ const PROGRESS_OPTIONS = [
   {
     value: "Resolved",
     label: "Resolved",
-    desc: "Case closed",
     dot: "#0F6E56",
     bg: "#E1F5EE",
     border: "#9FE1CB",
     text: "#085041",
+  },
+  {
+    value: "Closed",
+    label: "Closed",
+    dot: "#4D5A66",
+    bg: "#EDF3F8",
+    border: "#C8D7E4",
+    text: "#35414C",
   },
 ];
 
@@ -160,6 +166,7 @@ const emptyStudentInfo = (): StudentInfo => ({
   level: "",
   section: "",
   adviser: "",
+  sanction: "",
 });
 
 const emptyFormData = () => ({
@@ -168,7 +175,6 @@ const emptyFormData = () => ({
   case: "",
   caseCategory: "",
   description: "",
-  sanction: "",
   progress: "Pending",
   additionalStudents: [] as StudentInfo[],
   uploadedProofs: [] as ProofItem[],
@@ -211,6 +217,7 @@ const normalizeStudentInfo = (data: ReturnType<typeof emptyFormData>) => ({
   level: normalizeGradeLevel(data.level),
   section: normalizeSection(data.section),
   adviser: capitalizeWords(data.adviser),
+  sanction: data.sanction.slice(0, TEXT_FIELD_LIMIT),
   additionalStudents: data.additionalStudents.map((student) => normalizeStudent(student)),
 });
 
@@ -221,6 +228,7 @@ const normalizeStudent = (student: StudentInfo): StudentInfo => ({
   level: normalizeGradeLevel(student.level),
   section: normalizeSection(student.section),
   adviser: capitalizeWords(student.adviser),
+  sanction: (student.sanction ?? "").slice(0, TEXT_FIELD_LIMIT),
 });
 
 const isStudentComplete = (student: StudentInfo) =>
@@ -339,10 +347,13 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
+          const base = { ...emptyFormData(), ...parsed };
           setFormData({
-            ...emptyFormData(),
-            ...parsed,
-            additionalStudents: Array.isArray(parsed.additionalStudents) ? parsed.additionalStudents : [],
+            ...base,
+            sanction: parsed.sanction ?? "",
+            additionalStudents: Array.isArray(parsed.additionalStudents)
+              ? parsed.additionalStudents.map((student: StudentInfo) => ({ ...emptyStudentInfo(), ...student, sanction: student.sanction ?? "" }))
+              : [],
           });
           const cat = getCategoryForCase(parsed.case);
           if (cat) setExpandedCategory(cat.id);
@@ -530,6 +541,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           level: normalized.level,
           section: normalized.section,
           adviser: normalized.adviser,
+          sanction: normalized.sanction,
         },
         ...normalized.additionalStudents,
       ];
@@ -539,16 +551,18 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         created_at: proof.created_at ?? dateFiled,
       })));
 
-      await invoke<number>("add_case", {
-        students: JSON.stringify(students),
-        date: normalized.date,
-        dateFiled,
-        case: normalized.case.trim(),
-        description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
-        sanction: normalized.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
-        progress: normalized.progress,
-        proofs,
-      });
+      for (const student of students) {
+        await invoke<number>("add_case", {
+          students: JSON.stringify([student]),
+          date: normalized.date,
+          dateFiled,
+          case: normalized.case.trim(),
+          description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
+          sanction: student.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
+          progress: normalized.progress,
+          proofs,
+        });
+      }
 
       localStorage.removeItem("new_case_draft");
 
@@ -764,22 +778,6 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     />
                   </div>
                   <div>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
-                      Sanction / action taken
-                    </label>
-                    <textarea
-                      rows={3}
-                      placeholder="Describe the sanction or action taken…"
-                      value={formData.sanction}
-                      maxLength={TEXT_FIELD_LIMIT}
-                      onChange={(e) => setFormData({ ...formData, sanction: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
-                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
-                    />
-                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
-                      {formData.sanction.length}/{TEXT_FIELD_LIMIT}
-                    </p>
-                  </div>
-                  <div>
                     <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-2">
                       Case status
                       <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
@@ -790,18 +788,14 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           key={opt.value}
                           type="button"
                           onClick={() => setFormData({ ...formData, progress: opt.value })}
-                          className={`center-fill-option flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all duration-500 text-left ${formData.progress === opt.value ? "center-fill-option-selected" : ""}`}
+                          className={`center-fill-option flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all duration-500 text-center ${formData.progress === opt.value ? "center-fill-option-selected" : ""}`}
                           style={formData.progress === opt.value
                             ? { background: opt.bg, borderColor: opt.dot, color: opt.text }
                             : { background: "transparent", borderColor: "var(--outline-variant)", color: "var(--on-surface-variant)", ["--fill-hover-bg" as string]: opt.bg, ["--fill-hover-border" as string]: opt.border }
                           }
                         >
-                          <div className="relative z-10 flex items-center gap-1.5 transition-colors duration-500">
-                            <div className="w-2 h-2 rounded-full transition-colors duration-500" style={{ background: formData.progress === opt.value ? opt.dot : "var(--outline-variant)" }} />
-                            <div>
-                              <div>{opt.label}</div>
-                              <div className="font-normal opacity-70 text-[10px] transition-colors duration-500">{opt.desc}</div>
-                            </div>
+                          <div className="relative z-10 text-center transition-colors duration-500">
+                            {opt.label}
                           </div>
                         </button>
                       ))}
@@ -895,6 +889,22 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                      Sanction / action taken
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Describe the sanction or action taken…"
+                      value={formData.sanction}
+                      maxLength={TEXT_FIELD_LIMIT}
+                      onChange={(e) => setFormData({ ...formData, sanction: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                    />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {formData.sanction.length}/{TEXT_FIELD_LIMIT}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1001,6 +1011,22 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                       </div>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                        Sanction / action taken
+                      </label>
+                      <textarea
+                        rows={3}
+                        placeholder="Describe the sanction or action taken…"
+                        value={student.sanction}
+                        maxLength={TEXT_FIELD_LIMIT}
+                        onChange={(e) => handleAdditionalStudentChange(index, "sanction", e.target.value.slice(0, TEXT_FIELD_LIMIT))}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                      />
+                      <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                        {student.sanction.length}/{TEXT_FIELD_LIMIT}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1190,23 +1216,6 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       )}
                     </div>
                   ))}
-                  <div className="col-span-2">
-                    <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">Sanction</p>
-                    {isEditingReview ? (
-                      <>
-                        <textarea value={formData.sanction} rows={2}
-                          maxLength={TEXT_FIELD_LIMIT}
-                          onChange={(e) => setFormData({ ...formData, sanction: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
-                        />
-                        <p className="mt-1 text-right text-[10px] font-medium text-secondary">
-                          {formData.sanction.length}/{TEXT_FIELD_LIMIT}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-on-surface font-medium">{formData.sanction || <span className="text-secondary italic font-normal">Not set</span>}</p>
-                    )}
-                  </div>
                 </div>
               </div>
 
@@ -1248,6 +1257,23 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       )}
                     </div>
                   ))}
+                  <div className="col-span-2">
+                    <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">Sanction / action taken</p>
+                    {isEditingReview ? (
+                      <>
+                        <textarea value={formData.sanction} rows={2}
+                          maxLength={TEXT_FIELD_LIMIT}
+                          onChange={(e) => setFormData({ ...formData, sanction: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                        />
+                        <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                          {formData.sanction.length}/{TEXT_FIELD_LIMIT}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-on-surface font-medium">{formData.sanction || <span className="text-secondary italic font-normal">Not set</span>}</p>
+                    )}
+                  </div>
                 </div>
                 {formData.additionalStudents.map((student, index) => {
                   const isRemoving = removingAdditionalStudents.includes(student);
@@ -1294,6 +1320,25 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         )}
                       </div>
                     ))}
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">Sanction / action taken</p>
+                      {isEditingReview ? (
+                        <>
+                          <textarea
+                            value={student.sanction}
+                            rows={2}
+                            maxLength={TEXT_FIELD_LIMIT}
+                            onChange={(e) => handleAdditionalStudentChange(index, "sanction", e.target.value.slice(0, TEXT_FIELD_LIMIT))}
+                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                          />
+                          <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                            {student.sanction.length}/{TEXT_FIELD_LIMIT}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-on-surface font-medium">{student.sanction || <span className="text-secondary italic font-normal">Not set</span>}</p>
+                      )}
+                    </div>
                   </div>
                 );
                 })}

@@ -134,7 +134,7 @@ export default function PendingCases() {
   const [selectedId, setSelectedId]     = useState<number | null>(null);
   const [isLoading, setIsLoading]       = useState(false);
   const [resolvingId, setResolvingId]   = useState<number | null>(null);
-  const [confirmState, setConfirmState] = useState<"idle" | "resolving" | "reprimanding">("idle");
+  const [confirmState, setConfirmState] = useState<"idle" | "resolving" | "reprimanding" | "closing">("idle");
   const [resolvedIds, setResolvedIds]   = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery]   = useState("");
   const [dateSort, setDateSort]         = useState<"desc" | "asc">("desc");
@@ -619,6 +619,15 @@ export default function PendingCases() {
                       Mark reprimand
                     </button>
                     <button
+                      onClick={() => setConfirmState("closing")}
+                      disabled={resolvingId !== null}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border text-xs font-bold transition-all duration-500 disabled:opacity-50 hover:bg-[#EDF3F8]/70"
+                      style={{ borderColor: "#C8D7E4", color: "#35414C", background: "#EDF3F8" }}
+                    >
+                      <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>inventory_2</span>
+                      Mark closed
+                    </button>
+                    <button
                       onClick={() => setConfirmState("resolving")}
                       disabled={resolvingId !== null}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-500 disabled:opacity-50 hover:bg-black"
@@ -654,6 +663,34 @@ export default function PendingCases() {
                         <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>check</span>
                       )}
                       {resolvingId === selectedCase.id ? "Saving…" : "Confirm resolve"}
+                    </button>
+                  </div>
+                )}
+
+                {confirmState === "closing" && (
+                  <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant">
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#4D5A66" }}>inventory_2</span>
+                    <p className="text-sm text-on-surface flex-1">
+                      Mark case <span className="font-bold">#{selectedCase.id}</span> as <span className="font-bold">Closed</span>?
+                    </p>
+                    <button
+                      onClick={() => setConfirmState("idle")}
+                      className="text-xs font-bold text-secondary hover:text-on-surface px-3 py-1.5 rounded-lg hover:bg-surface transition-colors duration-500"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleUpdateProgress(selectedCase.id, "Closed")}
+                      disabled={resolvingId === selectedCase.id}
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-500 disabled:opacity-60"
+                      style={{ background: "#4D5A66", color: "#fff" }}
+                    >
+                      {resolvingId === selectedCase.id ? (
+                        <span className="material-symbols-outlined animate-spin transition-colors duration-500" style={{ fontSize: 14 }}>progress_activity</span>
+                      ) : (
+                        <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>inventory_2</span>
+                      )}
+                      Confirm closed
                     </button>
                   </div>
                 )}
