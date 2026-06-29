@@ -26,6 +26,7 @@ interface CaseRecord {
   sanction: string;
   progress: string;
   proofs: string;
+  title: string;
 }
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
@@ -237,7 +238,8 @@ export default function CaseDetails() {
     case: "",
     description: "",
     sanction: "",
-    progress: ""
+    progress: "Pending",
+    title: "",
   });
 
   // Proofs State
@@ -315,7 +317,8 @@ export default function CaseDetails() {
       case: record.case,
       description: record.description,
       sanction: record.sanction,
-      progress: record.progress
+      progress: record.progress,
+      title: record.title || "",
     });
   }, []);
 
@@ -398,6 +401,7 @@ export default function CaseDetails() {
           sanction: data.sanction,
           progress: data.progress,
           proofs: JSON.stringify(proofs),
+          title: data.title,
         });
         localStorage.removeItem(`case_proofs_${id}`);
       }
@@ -427,6 +431,7 @@ export default function CaseDetails() {
       sanction: caseRecord.sanction,
       progress: caseRecord.progress,
       proofs: JSON.stringify(proofs),
+      title: caseRecord.title,
     });
     setUploadedProofs(proofs);
     setCaseRecord({ ...caseRecord, proofs: JSON.stringify(proofs) });
@@ -490,7 +495,8 @@ export default function CaseDetails() {
         description: editForm.description.trim().slice(0, TEXT_FIELD_LIMIT),
         sanction: editForm.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
         progress: editForm.progress,
-        proofs: caseRecord.proofs
+        proofs: caseRecord.proofs,
+        title: editForm.title.trim(),
       });
       setIsEditing(false);
       window.dispatchEvent(new Event("cases:changed"));
@@ -814,6 +820,23 @@ export default function CaseDetails() {
                   <p className="text-sm font-medium text-on-surface leading-relaxed">{caseRecord.case}</p>
                 )}
               </div>
+
+              {(isEditing || caseRecord.title) && (
+                <div className="md:col-span-1">
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Case Title</label>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editForm.title}
+                      placeholder="Optional title"
+                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                    />
+                  ) : (
+                    <p className="text-sm font-medium text-on-surface leading-relaxed">{caseRecord.title}</p>
+                  )}
+                </div>
+              )}
 
               <div className="md:col-span-3">
                 <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Description</label>

@@ -176,6 +176,8 @@ const emptyFormData = () => ({
   caseCategory: "",
   description: "",
   progress: "Pending",
+  title: "",
+  fileAsSeparateCases: false,
   additionalStudents: [] as StudentInfo[],
   uploadedProofs: [] as ProofItem[],
 });
@@ -350,6 +352,8 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           const base = { ...emptyFormData(), ...parsed };
           setFormData({
             ...base,
+            title: parsed.title ?? "",
+            fileAsSeparateCases: parsed.fileAsSeparateCases ?? false,
             sanction: parsed.sanction ?? "",
             additionalStudents: Array.isArray(parsed.additionalStudents)
               ? parsed.additionalStudents.map((student: StudentInfo) => ({ ...emptyStudentInfo(), ...student, sanction: student.sanction ?? "" }))
@@ -531,6 +535,11 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       setCurrentStep(2);
       return;
     }
+    if (normalized.additionalStudents.length > 0 && !normalized.title.trim()) {
+      showToast("Case Title is required when multiple students are involved.");
+      setCurrentStep(2);
+      return;
+    }
     setIsSubmitting(true);
     try {
       const students = [
@@ -551,16 +560,31 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         created_at: proof.created_at ?? dateFiled,
       })));
 
-      for (const student of students) {
+      if (normalized.fileAsSeparateCases) {
+        for (const student of students) {
+          await invoke<number>("add_case", {
+            students: JSON.stringify([student]),
+            date: normalized.date,
+            dateFiled,
+            case: normalized.case.trim(),
+            description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
+            sanction: student.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
+            progress: normalized.progress,
+            proofs,
+            title: normalized.title.trim(),
+          });
+        }
+      } else {
         await invoke<number>("add_case", {
-          students: JSON.stringify([student]),
+          students: JSON.stringify(students),
           date: normalized.date,
           dateFiled,
           case: normalized.case.trim(),
           description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
-          sanction: student.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
+          sanction: students[0].sanction.trim().slice(0, TEXT_FIELD_LIMIT),
           progress: normalized.progress,
           proofs,
+          title: normalized.title.trim(),
         });
       }
 
@@ -801,6 +825,47 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       ))}
                     </div>
                   </div>
+                  
+                  {formData.additionalStudents.length > 0 && (
+                    <>
+                      <div className="pt-2 border-t border-outline-variant mt-2">
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                          Case Title
+                          <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Bullying Incident in Class 3"
+                          value={formData.title}
+                          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        />
+                        <p className="mt-1 text-[10px] text-secondary">A title to group these students together.</p>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-surface-container-low border border-outline-variant p-3 rounded-xl mt-1">
+                        <div className="relative flex items-center">
+                          <input
+                            type="checkbox"
+                            id="fileAsSeparateCases"
+                            checked={formData.fileAsSeparateCases}
+                            onChange={(e) => setFormData({ ...formData, fileAsSeparateCases: e.target.checked })}
+                            className="peer appearance-none w-5 h-5 border-2 border-outline rounded bg-surface checked:bg-primary checked:border-primary transition-all cursor-pointer"
+                          />
+                          <span className="material-symbols-outlined absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-[14px] opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity">
+                            check
+                          </span>
+                        </div>
+                        <label htmlFor="fileAsSeparateCases" className="text-sm font-bold text-on-surface cursor-pointer select-none">
+                          File as separate cases for each student
+                          <p className="text-[11px] font-normal text-secondary mt-0.5">
+                            If checked, each student will get a separate Case ID but share the same incident details and title.
+                          </p>
+                        </label>
+                      </div>
+                    </>
+                  )}
+
                 </div>
               </div>
 

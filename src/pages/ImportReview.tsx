@@ -136,6 +136,7 @@ export default function ImportReview() {
       progress: row.progress,
       proofs: row.proofs,
       students: row.students,
+      title: row.title || "",
     });
   };
 
@@ -666,6 +667,15 @@ export default function ImportReview() {
                     value={editData.proofs}
                     onChange={e => handleEditChange("proofs", e.target.value)}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono resize-y"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">case title</label>
+                  <input
+                    type="text"
+                    value={editData.title}
+                    onChange={e => handleEditChange("title", e.target.value)}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
                   />
                 </div>
 

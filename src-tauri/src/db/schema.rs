@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS cases (
   sanction   TEXT NOT NULL,
   progress   TEXT NOT NULL DEFAULT 'Pending',
   proofs     TEXT NOT NULL DEFAULT '[]',
-  students   TEXT NOT NULL DEFAULT '[]'
+  students   TEXT NOT NULL DEFAULT '[]',
+  title      TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS app_config (
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
     let mut has_description = false;
     let mut has_proofs = false;
     let mut has_students = false;
+    let mut has_title = false;
     while let Some(row) = rows.next()? {
         let name: String = row.get(1)?;
         if name == "date_filed" {
@@ -60,6 +62,9 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
         }
         if name == "students" {
             has_students = true;
+        }
+        if name == "title" {
+            has_title = true;
         }
     }
 
@@ -108,6 +113,14 @@ ALTER TABLE cases ADD COLUMN description TEXT NOT NULL DEFAULT '';
         connection.execute_batch(
             r#"
 ALTER TABLE cases ADD COLUMN proofs TEXT NOT NULL DEFAULT '[]';
+"#,
+        )?;
+    }
+
+    if !has_title {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN title TEXT NOT NULL DEFAULT '';
 "#,
         )?;
     }

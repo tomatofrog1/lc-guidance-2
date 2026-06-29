@@ -14,6 +14,7 @@ export interface CaseRecord {
   progress: string;
   proofs: string;
   students: string;
+  title: string;
 }
 
 export interface ImportRow {
@@ -32,6 +33,7 @@ export interface ImportRow {
   progress: string;
   proofs: string;
   students: string;
+  title: string;
   is_duplicate: boolean;
   existing_case: CaseRecord | null;
   has_errors: boolean;
@@ -54,6 +56,7 @@ export interface ImportRowInput {
   progress: string;
   proofs: string;
   students: string;
+  title: string;
 }
 
 export interface ParseFileResult {

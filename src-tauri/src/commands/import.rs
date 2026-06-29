@@ -1,14 +1,13 @@
 use calamine::{open_workbook_auto, Reader, DataType};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::env;
 use tauri::State;
 use rust_xlsxwriter::{Workbook, Format};
 
 use crate::db::DbState;
 use super::{db_error, CaseRecord};
 
-const DB_IMPORT_HEADERS: [&str; 13] = [
+const DB_IMPORT_HEADERS: [&str; 14] = [
     "First Name",
     "Last Name",
     "Middle Name",
@@ -22,6 +21,7 @@ const DB_IMPORT_HEADERS: [&str; 13] = [
     "Sanction",
     "Progress",
     "Proofs",
+    "Title",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +41,7 @@ pub struct ImportRow {
     pub progress: String,
     pub proofs: String,
     pub students: String,
+    pub title: String,
     pub is_duplicate: bool,
     pub existing_case: Option<CaseRecord>,
     pub has_errors: bool,
@@ -72,6 +73,7 @@ pub struct ImportRowInput {
     pub progress: String,
     pub proofs: String,
     pub students: String,
+    pub title: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -289,6 +291,7 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
             sanction: cell_to_db_string(row.get(10)),
             progress: cell_to_db_string(row.get(11)),
             proofs: cell_to_db_string(row.get(12)),
+            title: cell_to_db_string(row.get(13)),
             students: String::new(),
             is_duplicate: false,
             existing_case: None,
@@ -353,6 +356,7 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
                         progress: prev.progress.clone(),
                         proofs: prev.proofs.clone(),
                         students: prev.students.clone(),
+                        title: prev.title.clone(),
                     });
                 }
             }
@@ -388,21 +392,13 @@ pub fn batch_import_cases(state: State<'_, DbState>, rows: Vec<ImportRowInput>) 
     let mut errors = Vec::new();
 
     {
-        let mut stmt = tx.prepare(
-            r#"
-            INSERT INTO cases (
-                id, first_name, last_name, middle_initial, level, section, date, date_filed,
-                adviser, "case", description, sanction, progress, proofs, students
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
-            "#
-        ).map_err(db_error)?;
 
         let mut stmt_with_id = tx.prepare(
             r#"
             INSERT INTO cases (
                 id, first_name, last_name, middle_initial, level, section, date, date_filed,
-                adviser, "case", description, sanction, progress, proofs, students
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+                adviser, "case", description, sanction, progress, proofs, students, title
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
             "#
         ).map_err(db_error)?;
 
@@ -410,8 +406,8 @@ pub fn batch_import_cases(state: State<'_, DbState>, rows: Vec<ImportRowInput>) 
             r#"
             INSERT INTO cases (
                 first_name, last_name, middle_initial, level, section, date, date_filed,
-                adviser, "case", description, sanction, progress, proofs, students
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                adviser, "case", description, sanction, progress, proofs, students, title
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
             "#
         ).map_err(db_error)?;
 
@@ -437,7 +433,8 @@ pub fn batch_import_cases(state: State<'_, DbState>, rows: Vec<ImportRowInput>) 
                     row.sanction,
                     row.progress,
                     row.proofs,
-                    row.students
+                    row.students,
+                    row.title,
                 ])
             } else {
                 stmt_no_id.execute(params![
@@ -454,7 +451,8 @@ pub fn batch_import_cases(state: State<'_, DbState>, rows: Vec<ImportRowInput>) 
                     row.sanction,
                     row.progress,
                     row.proofs,
-                    row.students
+                    row.students,
+                    row.title,
                 ])
             };
 
@@ -502,7 +500,7 @@ pub fn generate_import_template(app: tauri::AppHandle) -> Result<String, String>
         .set_font_color("#FFFFFF")
         .set_background_color("#002F87");
 
-    let column_widths = [18.0, 18.0, 18.0, 16.0, 16.0, 16.0, 22.0, 22.0, 28.0, 42.0, 28.0, 18.0, 48.0];
+    let column_widths = [18.0, 18.0, 18.0, 16.0, 16.0, 16.0, 22.0, 22.0, 28.0, 42.0, 28.0, 18.0, 48.0, 28.0];
 
     for (col, header) in DB_IMPORT_HEADERS.iter().enumerate() {
         worksheet.write_string_with_format(0, col as u16, *header, &header_format).map_err(|e| e.to_string())?;
@@ -540,6 +538,7 @@ pub fn validate_import_row(state: State<'_, DbState>, row: ImportRowInput) -> Re
         progress: row.progress.trim().to_string(),
         proofs: row.proofs.trim().to_string(),
         students: row.students.trim().to_string(),
+        title: row.title.trim().to_string(),
         is_duplicate: false,
         existing_case: None,
         has_errors: false,
