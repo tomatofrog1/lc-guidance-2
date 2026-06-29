@@ -33,6 +33,7 @@ interface CaseRecord {
   progress: string;
   proofs: string;
   students: string;
+  title: string;
 }
 
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
@@ -280,6 +281,19 @@ export default function CaseCatalog() {
     };
   }, [cases]);
 
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    cases.forEach((c) => {
+      const dateVal = new Date(c.date_filed || c.date);
+      if (!Number.isNaN(dateVal.getTime())) {
+        const year = dateVal.getFullYear();
+        const month = String(dateVal.getMonth() + 1).padStart(2, "0");
+        monthsSet.add(`${year}-${month}`);
+      }
+    });
+    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+  }, [cases]);
+
   const filteredAndSortedCases = useMemo(() => {
     let result = cases;
 
@@ -301,6 +315,7 @@ export default function CaseCatalog() {
         return (
           idStr.toLowerCase().includes(q) ||
           c.case.toLowerCase().includes(q) ||
+          (c.title && c.title.toLowerCase().includes(q)) ||
           matchesStudent
         );
       });
@@ -795,7 +810,7 @@ export default function CaseCatalog() {
             <button
               type="button"
               onClick={() => setIsStatusDropdownOpen((open) => !open)}
-              className={`group inline-flex h-[38px] w-[205px] items-center gap-2 rounded-full border bg-surface px-3 text-left text-[13px] transition-all duration-300 ease-out ${
+              className={`group inline-flex h-[38px] w-[205px] items-center gap-2 rounded-lg border bg-surface px-3 text-left text-[13px] transition-all duration-300 ease-out ${
                 isStatusDropdownOpen
                   ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
                   : "border-outline-variant hover:border-primary/60 hover:bg-surface-container"
@@ -850,16 +865,25 @@ export default function CaseCatalog() {
 
           <div className="w-[2px] h-5 bg-outline-variant mx-1"></div>
 
-          <label className="group inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-[13px] text-on-surface-variant transition-all duration-300 ease-out hover:border-primary/60 hover:bg-surface-container focus-within:border-primary focus-within:bg-surface-container focus-within:ring-2 focus-within:ring-primary/20 focus-within:shadow-sm">
-            <span className="material-symbols-outlined text-secondary transition-colors duration-300 group-hover:text-primary group-focus-within:text-primary" style={{ fontSize: 16 }}>calendar_month</span>
-            <span className="font-medium whitespace-nowrap">Month</span>
-            <input
-              type="month"
+          <label className="relative group inline-flex items-center rounded-lg border border-outline-variant bg-surface text-[13px] text-on-surface-variant transition-all duration-300 ease-out hover:border-primary/60 hover:bg-surface-container focus-within:border-primary focus-within:bg-surface-container focus-within:ring-2 focus-within:ring-primary/20 focus-within:shadow-sm">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary transition-colors duration-300 group-hover:text-primary group-focus-within:text-primary pointer-events-none" style={{ fontSize: 16 }}>calendar_month</span>
+            <select
               value={monthFilter}
-              max={currentMonth}
               onChange={(e) => handleMonthFilterChange(e.target.value)}
-              className="bg-transparent text-on-surface focus:outline-none text-[13px] transition-colors duration-300"
-            />
+              className="h-[38px] w-auto min-w-[140px] appearance-none bg-transparent pl-9 pr-8 font-medium text-on-surface focus:outline-none transition-colors duration-300 cursor-pointer"
+            >
+              <option value="">All Months</option>
+              {availableMonths.map((m) => {
+                const [year, month] = m.split("-");
+                const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1);
+                return (
+                  <option key={m} value={m}>
+                    {date.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  </option>
+                );
+              })}
+            </select>
+            <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary pointer-events-none transition-colors duration-300 group-hover:text-primary group-focus-within:text-primary" style={{ fontSize: 18 }}>expand_more</span>
           </label>
 
           <DatePicker
@@ -1018,7 +1042,12 @@ export default function CaseCatalog() {
                     })()}
                   </td>
                   <td className="p-table-cell-padding">
-                    <span className="text-xs text-on-surface-variant">{caseRecord.case}</span>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-on-surface-variant">{caseRecord.case}</span>
+                      {caseRecord.title ? (
+                        <span className="text-[10px] text-secondary mt-0.5 font-medium">{caseRecord.title}</span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="p-table-cell-padding text-center">
                     <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>

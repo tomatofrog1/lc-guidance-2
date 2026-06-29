@@ -22,6 +22,7 @@ interface Case {
   sanction: string;
   progress: string;
   proofs: string;
+  title: string;
 }
 
 interface ProofItem {
@@ -216,7 +217,8 @@ export default function PendingCases() {
         description: caseRecord.description,
         sanction: caseRecord.sanction,
         progress: newProgress,
-        proofs: caseRecord.proofs
+        proofs: caseRecord.proofs,
+        title: caseRecord.title
       });
       
       const caseIdFormatted = `#${caseId.toString().padStart(4, "0")}`;

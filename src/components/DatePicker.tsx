@@ -126,7 +126,7 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center h-[38px] rounded-full border text-sm transition-all duration-500 ease-in-out text-left select-none relative overflow-hidden w-[260px] pl-3.5 pr-8 ${
+        className={`flex items-center h-[38px] rounded-lg border text-sm transition-all duration-500 ease-in-out text-left select-none relative overflow-hidden w-[260px] pl-3.5 pr-8 ${
           isOpen 
             ? "bg-surface-container border-primary ring-2 ring-primary/20 shadow-sm" 
             : "bg-surface border-outline-variant hover:bg-surface-container"
