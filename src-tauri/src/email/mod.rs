@@ -37,15 +37,28 @@ pub fn send_otp_email(
     smtp_password: &str,
     recovery_email: &str,
     code: &str,
+    purpose: &str,
 ) -> Result<(), String> {
-    let body = format!(
-        "Your PIN reset code is: {code}\n\nThis code expires in 10 minutes. Do not share this code with anyone."
-    );
+    let (subject, description) = match purpose {
+        "recovery_email_access" => (
+            "Laguna College Guidance Office - Recovery Email Verification",
+            "Your recovery email access code",
+        ),
+        "pin_change_access" => (
+            "Laguna College Guidance Office - PIN Change Verification",
+            "Your PIN change verification code",
+        ),
+        _ => (
+            "Laguna College Guidance Office - PIN Reset Code",
+            "Your PIN reset code",
+        ),
+    };
+    let body = format!("{description} is: {code}\n\nThis code expires in 10 minutes. Do not share this code with anyone.");
 
     let email = Message::builder()
         .from(parse_mailbox(smtp_email, "SMTP")?)
         .to(parse_mailbox(recovery_email, "Recovery")?)
-        .subject("Laguna College Guidance Office - PIN Reset Code")
+        .subject(subject)
         .body(body)
         .map_err(|_| "Could not create reset email".to_string())?;
 

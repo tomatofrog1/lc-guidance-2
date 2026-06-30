@@ -27,6 +27,31 @@ pub struct CaseRecord {
     pub proofs: String,
     pub students: String,
     pub title: String,
+    pub reporting_student: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct StoredStudent {
+    #[serde(rename = "firstName", default)]
+    first_name: String,
+    #[serde(rename = "lastName", default)]
+    last_name: String,
+    #[serde(rename = "middleInitial", default)]
+    middle_initial: String,
+    #[serde(default)]
+    level: String,
+    #[serde(default)]
+    section: String,
+    #[serde(default)]
+    adviser: String,
+}
+
+fn primary_student(students: &str) -> Result<StoredStudent, String> {
+    serde_json::from_str::<Vec<StoredStudent>>(students)
+        .map_err(|error| format!("Invalid students data: {error}"))?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "At least one student is required".to_string())
 }
 
 pub fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
@@ -47,6 +72,7 @@ pub fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
         proofs: row.get("proofs")?,
         students: row.get("students")?,
         title: row.get("title")?,
+        reporting_student: row.get("reporting_student")?,
     })
 }
 
@@ -126,14 +152,15 @@ pub fn verify_pin(state: State<'_, DbState>, pin: String) -> Result<bool, String
     crate::auth::verify_secret(&pin, &hash)
 }
 
-#[tauri::command]
-pub fn request_otp(state: State<'_, DbState>) -> Result<(), String> {
-    let connection = state.connection.lock().map_err(db_error)?;
+fn request_otp_for_purpose(
+    connection: &rusqlite::Connection,
+    purpose: &str,
+) -> Result<(), String> {
     let now = Utc::now();
     let newest_expiry: Option<String> = connection
         .query_row(
-            "SELECT expires_at FROM otp_tokens WHERE used = 0 ORDER BY id DESC LIMIT 1",
-            [],
+            "SELECT expires_at FROM otp_tokens WHERE used = 0 AND purpose = ?1 ORDER BY id DESC LIMIT 1",
+            params![purpose],
             |row| row.get(0),
         )
         .optional()
@@ -155,42 +182,50 @@ pub fn request_otp(state: State<'_, DbState>) -> Result<(), String> {
     let recovery_email = require_config(&connection, "recovery_email")?;
 
     connection
-        .execute("DELETE FROM otp_tokens", [])
+        .execute("DELETE FROM otp_tokens WHERE purpose = ?1", params![purpose])
         .map_err(db_error)?;
     connection
         .execute(
-            "INSERT INTO otp_tokens (code_hash, expires_at, used) VALUES (?1, ?2, 0)",
-            params![code_hash, expires_at],
+            "INSERT INTO otp_tokens (code_hash, expires_at, used, purpose) VALUES (?1, ?2, 0, ?3)",
+            params![code_hash, expires_at, purpose],
         )
         .map_err(db_error)?;
 
-    crate::email::send_otp_email(&smtp_email, &smtp_password, &recovery_email, &code)
+    crate::email::send_otp_email(
+        &smtp_email,
+        &smtp_password,
+        &recovery_email,
+        &code,
+        purpose,
+    )
 }
 
-#[tauri::command]
-pub fn verify_otp(state: State<'_, DbState>, code: String) -> Result<bool, String> {
-    let connection = state.connection.lock().map_err(db_error)?;
+fn verify_otp_for_purpose(
+    connection: &rusqlite::Connection,
+    code: &str,
+    purpose: &str,
+) -> Result<bool, String> {
     let token: Option<(i64, String, String)> = connection
         .query_row(
-            "SELECT id, code_hash, expires_at FROM otp_tokens WHERE used = 0 ORDER BY id DESC LIMIT 1",
-            [],
+            "SELECT id, code_hash, expires_at FROM otp_tokens WHERE used = 0 AND purpose = ?1 ORDER BY id DESC LIMIT 1",
+            params![purpose],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .optional()
         .map_err(db_error)?;
 
     let Some((id, code_hash, expires_at)) = token else {
-        return Err("No active reset code found".to_string());
+        return Err("No active verification code found".to_string());
     };
 
     let expiry = chrono::DateTime::parse_from_rfc3339(&expires_at)
-        .map_err(|_| "Reset code is invalid".to_string())?
+        .map_err(|_| "Verification code is invalid".to_string())?
         .with_timezone(&Utc);
     if expiry < Utc::now() {
-        return Err("Reset code has expired".to_string());
+        return Err("Verification code has expired".to_string());
     }
 
-    if crate::auth::verify_secret(&code, &code_hash)? {
+    if crate::auth::verify_secret(code, &code_hash)? {
         connection
             .execute("UPDATE otp_tokens SET used = 1 WHERE id = ?1", params![id])
             .map_err(db_error)?;
@@ -201,12 +236,54 @@ pub fn verify_otp(state: State<'_, DbState>, code: String) -> Result<bool, Strin
 }
 
 #[tauri::command]
+pub fn request_otp(state: State<'_, DbState>) -> Result<(), String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    request_otp_for_purpose(&connection, "pin_reset")
+}
+
+#[tauri::command]
+pub fn verify_otp(state: State<'_, DbState>, code: String) -> Result<bool, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    verify_otp_for_purpose(&connection, &code, "pin_reset")
+}
+
+#[tauri::command]
+pub fn request_recovery_email_otp(state: State<'_, DbState>) -> Result<(), String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    request_otp_for_purpose(&connection, "recovery_email_access")
+}
+
+#[tauri::command]
+pub fn verify_recovery_email_otp(
+    state: State<'_, DbState>,
+    code: String,
+) -> Result<bool, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    verify_otp_for_purpose(&connection, &code, "recovery_email_access")
+}
+
+#[tauri::command]
+pub fn request_pin_change_otp(state: State<'_, DbState>) -> Result<(), String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    request_otp_for_purpose(&connection, "pin_change_access")
+}
+
+#[tauri::command]
+pub fn verify_pin_change_otp(
+    state: State<'_, DbState>,
+    code: String,
+) -> Result<bool, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    verify_otp_for_purpose(&connection, &code, "pin_change_access")
+}
+
+#[tauri::command]
 pub fn reset_pin(state: State<'_, DbState>, new_pin: String) -> Result<(), String> {
     crate::auth::validate_pin(&new_pin)?;
     let connection = state.connection.lock().map_err(db_error)?;
     let verified_count: i64 = connection
         .query_row(
-            "SELECT COUNT(*) FROM otp_tokens WHERE used = 1 ORDER BY id DESC LIMIT 1",
+            "SELECT COUNT(*) FROM otp_tokens WHERE used = 1 AND purpose = 'pin_reset'",
             [],
             |row| row.get(0),
         )
@@ -219,7 +296,7 @@ pub fn reset_pin(state: State<'_, DbState>, new_pin: String) -> Result<(), Strin
     let pin_hash = crate::auth::hash_secret(&new_pin)?;
     set_config(&connection, "app_pin_hash", &pin_hash)?;
     connection
-        .execute("DELETE FROM otp_tokens", [])
+        .execute("DELETE FROM otp_tokens WHERE purpose = 'pin_reset'", [])
         .map_err(db_error)?;
     Ok(())
 }
@@ -283,7 +360,7 @@ pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
     let mut statement = connection
         .prepare(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student
 FROM cases
 ORDER BY id DESC
 "#,
@@ -311,19 +388,24 @@ pub fn add_case(
     progress: String,
     proofs: String,
     title: String,
+    reporting_student: Option<String>,
 ) -> Result<i64, String> {
+    let primary_student = primary_student(&students)?;
     let connection = state.connection.lock().map_err(db_error)?;
 
     connection
         .execute(
             r#"
 INSERT INTO cases (
-  students, date, date_filed, "case", description, sanction, progress, proofs, title, first_name, last_name, middle_initial, level, section, adviser
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, '', '', '', '', '', '')
+  students, date, date_filed, "case", description, sanction, progress, proofs, title, reporting_student, first_name, last_name, middle_initial, level, section, adviser
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
 "#,
             params![
                 students, date, date_filed, r#case, description,
-                sanction, progress, proofs, title
+                sanction, progress, proofs, title, reporting_student.unwrap_or_default(),
+                primary_student.first_name, primary_student.last_name,
+                primary_student.middle_initial, primary_student.level,
+                primary_student.section, primary_student.adviser
             ],
         )
         .map_err(db_error)?;
@@ -344,7 +426,9 @@ pub fn update_case(
     progress: String,
     proofs: String,
     title: String,
+    reporting_student: Option<String>,
 ) -> Result<(), String> {
+    let primary_student = primary_student(&students)?;
     let connection = state.connection.lock().map_err(db_error)?;
 
     let rows_updated = connection
@@ -359,12 +443,22 @@ SET students = ?1,
     sanction = ?6,
     progress = ?7,
     proofs = ?8,
-    title = ?9
-WHERE id = ?10
+    title = ?9,
+    reporting_student = COALESCE(?10, reporting_student),
+    first_name = ?11,
+    last_name = ?12,
+    middle_initial = ?13,
+    level = ?14,
+    section = ?15,
+    adviser = ?16
+WHERE id = ?17
 "#,
             params![
                 students, date, date_filed, r#case, description,
-                sanction, progress, proofs, title, id
+                sanction, progress, proofs, title, reporting_student,
+                primary_student.first_name, primary_student.last_name,
+                primary_student.middle_initial, primary_student.level,
+                primary_student.section, primary_student.adviser, id
             ],
         )
         .map_err(db_error)?;
@@ -396,7 +490,7 @@ pub fn get_case(state: State<'_, DbState>, id: i64) -> Result<CaseRecord, String
     let case = connection
         .query_row(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student
 FROM cases
 WHERE id = ?1
 "#,

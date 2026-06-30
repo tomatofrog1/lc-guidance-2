@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS cases (
   progress   TEXT NOT NULL DEFAULT 'Pending',
   proofs     TEXT NOT NULL DEFAULT '[]',
   students   TEXT NOT NULL DEFAULT '[]',
-  title      TEXT NOT NULL DEFAULT ''
+  title      TEXT NOT NULL DEFAULT '',
+  reporting_student TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS app_config (
@@ -33,7 +34,8 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   code_hash  TEXT NOT NULL,
   expires_at TEXT NOT NULL,
-  used       INTEGER NOT NULL DEFAULT 0
+  used       INTEGER NOT NULL DEFAULT 0,
+  purpose    TEXT NOT NULL DEFAULT 'pin_reset'
 );
 "#,
     )?;
@@ -46,6 +48,7 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
     let mut has_proofs = false;
     let mut has_students = false;
     let mut has_title = false;
+    let mut has_reporting_student = false;
     while let Some(row) = rows.next()? {
         let name: String = row.get(1)?;
         if name == "date_filed" {
@@ -65,6 +68,9 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
         }
         if name == "title" {
             has_title = true;
+        }
+        if name == "reporting_student" {
+            has_reporting_student = true;
         }
     }
 
@@ -124,6 +130,43 @@ ALTER TABLE cases ADD COLUMN title TEXT NOT NULL DEFAULT '';
 "#,
         )?;
     }
+
+    if !has_reporting_student {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN reporting_student TEXT NOT NULL DEFAULT '';
+"#,
+        )?;
+    }
+
+    let has_otp_purpose: bool = connection.query_row(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info('otp_tokens') WHERE name = 'purpose'",
+        [],
+        |row| row.get(0),
+    )?;
+    if !has_otp_purpose {
+        connection.execute_batch(
+            "ALTER TABLE otp_tokens ADD COLUMN purpose TEXT NOT NULL DEFAULT 'pin_reset';",
+        )?;
+    }
+
+    connection.execute_batch(
+        r#"
+UPDATE cases
+SET first_name = COALESCE(NULLIF(json_extract(students, '$[0].firstName'), ''), first_name),
+    last_name = COALESCE(NULLIF(json_extract(students, '$[0].lastName'), ''), last_name),
+    middle_initial = COALESCE(NULLIF(json_extract(students, '$[0].middleInitial'), ''), middle_initial),
+    level = COALESCE(NULLIF(json_extract(students, '$[0].level'), ''), level),
+    section = COALESCE(NULLIF(json_extract(students, '$[0].section'), ''), section),
+    adviser = COALESCE(NULLIF(json_extract(students, '$[0].adviser'), ''), adviser)
+WHERE json_valid(students)
+  AND json_array_length(students) > 0
+  AND (
+    first_name = '' OR last_name = '' OR middle_initial = ''
+    OR level = '' OR section = '' OR adviser = ''
+  );
+"#,
+    )?;
 
     let legacy_proof_table_count: i64 = connection.query_row(
         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'case_proofs'",

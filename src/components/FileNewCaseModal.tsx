@@ -23,6 +23,8 @@ type StudentInfo = {
   sanction: string;
 };
 
+type ReportingStudentInfo = Omit<StudentInfo, "sanction">;
+
 // ── Case category data ──────────────────────────────────────────────────────
 const CASE_CATEGORIES = [
   {
@@ -133,6 +135,7 @@ const PROGRESS_OPTIONS = [
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
 const TEXT_FIELD_LIMIT = 250;
+const CASE_TITLE_LIMIT = 20;
 const MODAL_EXIT_MS = 200;
 const OTHER_CASE_CATEGORY = {
   id: "other",
@@ -169,6 +172,15 @@ const emptyStudentInfo = (): StudentInfo => ({
   sanction: "",
 });
 
+const emptyReportingStudentInfo = (): ReportingStudentInfo => ({
+  firstName: "",
+  lastName: "",
+  middleInitial: "",
+  level: "",
+  section: "",
+  adviser: "",
+});
+
 const emptyFormData = () => ({
   ...emptyStudentInfo(),
   date: getTodayDateString(),
@@ -177,7 +189,8 @@ const emptyFormData = () => ({
   description: "",
   progress: "Pending",
   title: "",
-  fileAsSeparateCases: false,
+  hasReportingStudent: false,
+  reportingStudent: emptyReportingStudentInfo(),
   additionalStudents: [] as StudentInfo[],
   uploadedProofs: [] as ProofItem[],
 });
@@ -213,6 +226,7 @@ const normalizeSection = (value: string) => {
 
 const normalizeStudentInfo = (data: ReturnType<typeof emptyFormData>) => ({
   ...data,
+  title: capitalizeWords(data.title).slice(0, CASE_TITLE_LIMIT),
   firstName: capitalizeWords(data.firstName),
   lastName: capitalizeWords(data.lastName),
   middleInitial: normalizeMiddleInitial(data.middleInitial),
@@ -220,6 +234,14 @@ const normalizeStudentInfo = (data: ReturnType<typeof emptyFormData>) => ({
   section: normalizeSection(data.section),
   adviser: capitalizeWords(data.adviser),
   sanction: data.sanction.slice(0, TEXT_FIELD_LIMIT),
+  reportingStudent: {
+    firstName: capitalizeWords(data.reportingStudent.firstName),
+    lastName: capitalizeWords(data.reportingStudent.lastName),
+    middleInitial: normalizeMiddleInitial(data.reportingStudent.middleInitial),
+    level: normalizeGradeLevel(data.reportingStudent.level),
+    section: normalizeSection(data.reportingStudent.section),
+    adviser: capitalizeWords(data.reportingStudent.adviser),
+  },
   additionalStudents: data.additionalStudents.map((student) => normalizeStudent(student)),
 });
 
@@ -233,7 +255,32 @@ const normalizeStudent = (student: StudentInfo): StudentInfo => ({
   sanction: (student.sanction ?? "").slice(0, TEXT_FIELD_LIMIT),
 });
 
+const normalizeReportingStudentField = (
+  student: ReportingStudentInfo,
+  field: keyof ReportingStudentInfo,
+): ReportingStudentInfo => {
+  if (field === "middleInitial") {
+    return { ...student, middleInitial: normalizeMiddleInitial(student.middleInitial) };
+  }
+  if (field === "level") {
+    return { ...student, level: normalizeGradeLevel(student.level) };
+  }
+  if (field === "section") {
+    return { ...student, section: normalizeSection(student.section) };
+  }
+  return { ...student, [field]: capitalizeWords(student[field]) };
+};
+
 const isStudentComplete = (student: StudentInfo) =>
+  Boolean(
+    student.lastName.trim() &&
+    student.firstName.trim() &&
+    student.level.trim() &&
+    student.section.trim() &&
+    student.adviser.trim()
+  );
+
+const isReportingStudentComplete = (student: ReportingStudentInfo) =>
   Boolean(
     student.lastName.trim() &&
     student.firstName.trim() &&
@@ -274,6 +321,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
     !formData.level.trim() &&
     !formData.section.trim() &&
     !formData.adviser.trim() &&
+    !formData.hasReportingStudent &&
     formData.additionalStudents.length === 0 &&
     formData.uploadedProofs.length === 0;
 
@@ -352,9 +400,15 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           const base = { ...emptyFormData(), ...parsed };
           setFormData({
             ...base,
-            title: parsed.title ?? "",
-            fileAsSeparateCases: parsed.fileAsSeparateCases ?? false,
+            title: (parsed.title ?? "").slice(0, CASE_TITLE_LIMIT),
             sanction: parsed.sanction ?? "",
+            hasReportingStudent: parsed.hasReportingStudent === true,
+            reportingStudent: parsed.hasReportingStudent === true
+              ? {
+                  ...emptyReportingStudentInfo(),
+                  ...(parsed.reportingStudent ?? {}),
+                }
+              : emptyReportingStudentInfo(),
             additionalStudents: Array.isArray(parsed.additionalStudents)
               ? parsed.additionalStudents.map((student: StudentInfo) => ({ ...emptyStudentInfo(), ...student, sanction: student.sanction ?? "" }))
               : [],
@@ -377,6 +431,16 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
 
   const handleSelectCase = (categoryId: string, caseName: string) => {
     setFormData((p) => ({ ...p, case: caseName, caseCategory: categoryId }));
+  };
+
+  const setHasReportingStudent = (hasReportingStudent: boolean) => {
+    setFormData((previous) => ({
+      ...previous,
+      hasReportingStudent,
+      reportingStudent: hasReportingStudent
+        ? previous.reportingStudent
+        : emptyReportingStudentInfo(),
+    }));
   };
 
   const handleUploadProof = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -481,8 +545,20 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         showToast("Please fill out all required fields before continuing.");
         return;
       }
+      if (normalized.hasReportingStudent && !isReportingStudentComplete(normalized.reportingStudent)) {
+        showToast("Please complete the reporting student information.");
+        return;
+      }
       if (normalized.date > getTodayDateString()) {
         showToast("Date of incident cannot be later than today.");
+        return;
+      }
+    }
+    if (currentStep === 3 && formData.additionalStudents.length > 0) {
+      const normalizedTitle = capitalizeWords(formData.title).slice(0, CASE_TITLE_LIMIT);
+      setFormData((p) => ({ ...p, title: normalizedTitle }));
+      if (!normalizedTitle) {
+        showToast("Case Title is required when multiple students are involved.");
         return;
       }
     }
@@ -530,6 +606,11 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       setCurrentStep(2);
       return;
     }
+    if (normalized.hasReportingStudent && !isReportingStudentComplete(normalized.reportingStudent)) {
+      showToast("Please complete the reporting student information.");
+      setCurrentStep(2);
+      return;
+    }
     if (normalized.date > getTodayDateString()) {
       showToast("Date of incident cannot be later than today.");
       setCurrentStep(2);
@@ -537,7 +618,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
     }
     if (normalized.additionalStudents.length > 0 && !normalized.title.trim()) {
       showToast("Case Title is required when multiple students are involved.");
-      setCurrentStep(2);
+      setCurrentStep(3);
       return;
     }
     setIsSubmitting(true);
@@ -560,7 +641,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         created_at: proof.created_at ?? dateFiled,
       })));
 
-      if (normalized.fileAsSeparateCases) {
+      if (students.length > 1) {
         for (const student of students) {
           await invoke<number>("add_case", {
             students: JSON.stringify([student]),
@@ -572,6 +653,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
             progress: normalized.progress,
             proofs,
             title: normalized.title.trim(),
+            reportingStudent: normalized.hasReportingStudent ? JSON.stringify(normalized.reportingStudent) : "",
           });
         }
       } else {
@@ -585,6 +667,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           progress: normalized.progress,
           proofs,
           title: normalized.title.trim(),
+          reportingStudent: normalized.hasReportingStudent ? JSON.stringify(normalized.reportingStudent) : "",
         });
       }
 
@@ -609,7 +692,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
 
   if (!isOpen && !isVisible) return null;
 
-  const STEPS = ["Case type", "Student info", "Proofs and Description", "Review"];
+  const STEPS = ["Case type", "Students and report source", "Proofs and Description", "Review"];
   const activeCat = getCategoryForCase(formData.case);
   const displayCat = formData.case.trim() ? activeCat ?? OTHER_CASE_CATEGORY : null;
 
@@ -826,52 +909,145 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     </div>
                   </div>
                   
-                  {formData.additionalStudents.length > 0 && (
-                    <>
-                      <div className="pt-2 border-t border-outline-variant mt-2">
+                </div>
+              </div>
+
+              {/* Report source block */}
+              <div className="bg-surface rounded-xl border border-outline-variant p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Report source</p>
+                    <p className="mt-1 text-sm font-bold text-on-surface">Was this case reported by a student?</p>
+                    <p className="mt-1 text-xs text-secondary">
+                      The reporting student will not appear under Student(s) Involved in the Case Catalog.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    {[
+                      { label: "No", value: false },
+                      { label: "Yes", value: true },
+                    ].map((option) => (
+                      <button
+                        key={option.label}
+                        type="button"
+                        onClick={() => setHasReportingStudent(option.value)}
+                        className={`min-w-16 rounded-lg border px-3 py-2 text-xs font-bold transition-colors ${
+                          formData.hasReportingStudent === option.value
+                            ? "border-primary bg-primary text-on-primary"
+                            : "border-outline-variant text-secondary hover:bg-surface-container"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${
+                  formData.hasReportingStudent
+                    ? "mt-5 grid-rows-[1fr] opacity-100"
+                    : "mt-0 grid-rows-[0fr] opacity-0 pointer-events-none"
+                }`}>
+                  <div className="min-h-0 overflow-hidden">
+                  <div className="border-t border-outline-variant pt-4">
+                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Reporting student information</p>
+                    <div className="flex flex-col gap-4">
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { label: "Last name", key: "lastName", placeholder: "e.g. Dela Cruz", required: true },
+                          { label: "First name", key: "firstName", placeholder: "e.g. Juan", required: true },
+                          { label: "Middle initial", key: "middleInitial", placeholder: "e.g. M", required: false },
+                        ].map((field) => (
+                          <div key={field.key}>
+                            <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                              {field.label}
+                              {field.required && <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={field.placeholder}
+                              maxLength={field.key === "middleInitial" ? 3 : undefined}
+                              value={formData.reportingStudent[field.key as keyof ReportingStudentInfo]}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                reportingStudent: { ...formData.reportingStudent, [field.key]: e.target.value },
+                              })}
+                              onBlur={() => setFormData((previous) => ({
+                                ...previous,
+                                reportingStudent: normalizeReportingStudentField(
+                                  previous.reportingStudent,
+                                  field.key as keyof ReportingStudentInfo,
+                                ),
+                              }))}
+                              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div>
                         <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
-                          Case Title
+                          Grade level
                           <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
                         </label>
                         <input
                           type="text"
-                          placeholder="e.g. Bullying Incident in Class 3"
-                          value={formData.title}
-                          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                          placeholder="e.g. Grade 10"
+                          list="grade-level-options"
+                          value={formData.reportingStudent.level}
+                          onChange={(e) => setFormData({ ...formData, reportingStudent: { ...formData.reportingStudent, level: e.target.value } })}
+                          onBlur={() => setFormData((previous) => ({
+                            ...previous,
+                            reportingStudent: { ...previous.reportingStudent, level: normalizeGradeLevel(previous.reportingStudent.level) },
+                          }))}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
-                        <p className="mt-1 text-[10px] text-secondary">A title to group these students together.</p>
                       </div>
-
-                      <div className="flex items-center gap-3 bg-surface-container-low border border-outline-variant p-3 rounded-xl mt-1">
-                        <div className="relative flex items-center">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                            Section
+                            <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                          </label>
                           <input
-                            type="checkbox"
-                            id="fileAsSeparateCases"
-                            checked={formData.fileAsSeparateCases}
-                            onChange={(e) => setFormData({ ...formData, fileAsSeparateCases: e.target.checked })}
-                            className="peer appearance-none w-5 h-5 border-2 border-outline rounded bg-surface checked:bg-primary checked:border-primary transition-all cursor-pointer"
+                            type="text"
+                            placeholder="e.g. STEM"
+                            list="section-options"
+                            value={formData.reportingStudent.section}
+                            onChange={(e) => setFormData({ ...formData, reportingStudent: { ...formData.reportingStudent, section: e.target.value } })}
+                            onBlur={() => setFormData((previous) => ({
+                              ...previous,
+                              reportingStudent: { ...previous.reportingStudent, section: normalizeSection(previous.reportingStudent.section) },
+                            }))}
+                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                           />
-                          <span className="material-symbols-outlined absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-[14px] opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity">
-                            check
-                          </span>
                         </div>
-                        <label htmlFor="fileAsSeparateCases" className="text-sm font-bold text-on-surface cursor-pointer select-none">
-                          File as separate cases for each student
-                          <p className="text-[11px] font-normal text-secondary mt-0.5">
-                            If checked, each student will get a separate Case ID but share the same incident details and title.
-                          </p>
-                        </label>
+                        <div>
+                          <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                            Adviser
+                            <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Mr. Santos"
+                            value={formData.reportingStudent.adviser}
+                            onChange={(e) => setFormData({ ...formData, reportingStudent: { ...formData.reportingStudent, adviser: e.target.value } })}
+                            onBlur={() => setFormData((previous) => ({
+                              ...previous,
+                              reportingStudent: { ...previous.reportingStudent, adviser: capitalizeWords(previous.reportingStudent.adviser) },
+                            }))}
+                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          />
+                        </div>
                       </div>
-                    </>
-                  )}
-
+                    </div>
+                  </div>
+                  </div>
                 </div>
               </div>
 
               {/* Student block */}
               <div className="bg-surface rounded-xl border border-outline-variant p-5">
-                <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Student information</p>
+                <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Student(s) involved</p>
                 <div className="flex flex-col gap-4">
                   <div className="grid grid-cols-3 gap-3">
                     <div>
@@ -984,7 +1160,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                   }`}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Student information {index + 2}</p>
+                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Student involved {index + 2}</p>
                     <button
                       type="button"
                       onClick={() => handleRemoveAdditionalStudent(student)}
@@ -1114,6 +1290,30 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           {/* STEP 3 — Attach Proofs */}
           {currentStep === 3 && (
             <div className="flex flex-col gap-4 max-w-2xl mx-auto animate-fade-in">
+              {formData.additionalStudents.length > 0 && (
+                <div className="bg-surface rounded-xl border border-outline-variant p-5">
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                    Case Title
+                    <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                  </label>
+                  <div className="w-64 max-w-full">
+                    <input
+                      type="text"
+                      placeholder="e.g. Class Incident"
+                      value={formData.title}
+                      maxLength={CASE_TITLE_LIMIT}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value.slice(0, CASE_TITLE_LIMIT) })}
+                      onBlur={() => setFormData((p) => ({ ...p, title: capitalizeWords(p.title).slice(0, CASE_TITLE_LIMIT) }))}
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                    />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {formData.title.length}/{CASE_TITLE_LIMIT}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-[10px] text-secondary">A title to group these students together.</p>
+                </div>
+              )}
+
               <div className="bg-surface rounded-xl border border-outline-variant p-5">
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -1284,10 +1484,91 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 </div>
               </div>
 
+              {/* Report source */}
+              <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-outline-variant">
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Report source</p>
+                </div>
+                <div className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">Reported by a student</p>
+                      <p className="text-sm font-medium text-on-surface">{formData.hasReportingStudent ? "Yes" : "No"}</p>
+                    </div>
+                    {isEditingReview && (
+                      <div className="flex gap-2">
+                        {[
+                          { label: "No", value: false },
+                          { label: "Yes", value: true },
+                        ].map((option) => (
+                          <button
+                            key={option.label}
+                            type="button"
+                            onClick={() => setHasReportingStudent(option.value)}
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${
+                              formData.hasReportingStudent === option.value
+                                ? "border-primary bg-primary text-on-primary"
+                                : "border-outline-variant text-secondary"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${
+                    formData.hasReportingStudent
+                      ? "mt-3 grid-rows-[1fr] opacity-100"
+                      : "mt-0 grid-rows-[0fr] opacity-0 pointer-events-none"
+                  }`}>
+                    <div className="min-h-0 overflow-hidden">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-outline-variant pt-3">
+                      {[
+                        { label: "Last name", key: "lastName" },
+                        { label: "First name", key: "firstName" },
+                        { label: "Middle initial", key: "middleInitial" },
+                        { label: "Grade level", key: "level" },
+                        { label: "Section", key: "section" },
+                        { label: "Adviser", key: "adviser" },
+                      ].map(({ label, key }) => (
+                        <div key={key}>
+                          <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
+                          {isEditingReview ? (
+                            <input
+                              type="text"
+                              value={formData.reportingStudent[key as keyof ReportingStudentInfo]}
+                              list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                reportingStudent: { ...formData.reportingStudent, [key]: e.target.value },
+                              })}
+                              onBlur={() => setFormData((previous) => ({
+                                ...previous,
+                                reportingStudent: normalizeReportingStudentField(
+                                  previous.reportingStudent,
+                                  key as keyof ReportingStudentInfo,
+                                ),
+                              }))}
+                              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                            />
+                          ) : (
+                            <p className="text-sm text-on-surface font-medium">
+                              {formData.reportingStudent[key as keyof ReportingStudentInfo] || <span className="text-secondary italic font-normal">Not set</span>}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Student info */}
               <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-outline-variant">
-                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Student information</p>
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Student(s) involved</p>
                 </div>
                 <div className="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-3">
                   {[

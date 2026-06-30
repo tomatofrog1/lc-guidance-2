@@ -210,6 +210,7 @@ export default function CaseCatalog() {
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeleteConfirmClosing, setIsDeleteConfirmClosing] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const statusDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -473,6 +474,7 @@ export default function CaseCatalog() {
 
   const handleDeleteCase = async () => {
     if (deleteConfirmId === null) return;
+    if (deleteConfirmText !== `Confirm${formatCaseId(deleteConfirmId)}`) return;
     try {
       await invoke("delete_case", { id: deleteConfirmId });
       closeDeleteConfirm();
@@ -486,6 +488,7 @@ export default function CaseCatalog() {
     setIsDeleteConfirmClosing(true);
     window.setTimeout(() => {
       setDeleteConfirmId(null);
+      setDeleteConfirmText("");
       setIsDeleteConfirmClosing(false);
     }, MODAL_EXIT_MS);
   };
@@ -980,7 +983,7 @@ export default function CaseCatalog() {
                     Incident Date
                   </div>
                 </th>
-                <th className="p-table-cell-padding font-semibold">Student Name</th>
+                <th className="p-table-cell-padding font-semibold">Student(s) Involved</th>
                 <th className="p-table-cell-padding font-semibold">Case Type</th>
                 <th className="p-table-cell-padding font-semibold text-center">Status</th>
                 <th className="p-table-cell-padding font-semibold">Adviser</th>
@@ -1065,6 +1068,7 @@ export default function CaseCatalog() {
                       onClick={(e) => {
                         e.stopPropagation();
                         setIsDeleteConfirmClosing(false);
+                        setDeleteConfirmText("");
                         setDeleteConfirmId(caseRecord.id);
                       }}
                       className="text-secondary hover:text-error transition-all duration-500 p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
@@ -1148,16 +1152,34 @@ export default function CaseCatalog() {
             <p className="text-secondary text-sm mb-6 leading-relaxed">
               Are you sure you want to delete case record <span className="font-bold text-on-surface">{formatCaseId(deleteConfirmId)}</span>? This action cannot be undone and will permanently remove this record from the database.
             </p>
-            <div className="flex gap-3 justify-end">
+            <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+              Type <span className="normal-case text-on-surface">Confirm{formatCaseId(deleteConfirmId)}</span> to continue
+            </label>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(event) => setDeleteConfirmText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && deleteConfirmText === `Confirm${formatCaseId(deleteConfirmId)}`) {
+                  handleDeleteCase();
+                }
+              }}
+              placeholder={`Confirm${formatCaseId(deleteConfirmId)}`}
+              autoFocus
+              autoComplete="off"
+              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 mb-6 text-sm font-data-mono text-on-surface focus:ring-2 focus:ring-error focus:outline-none"
+            />
+            <div className="flex items-center justify-center gap-3">
               <button
                 onClick={closeDeleteConfirm}
-                className="px-4 py-2 rounded-lg font-bold text-sm bg-surface-container hover:bg-surface-container-high transition-colors duration-500 text-on-surface border border-outline-variant"
+                className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-surface-container hover:bg-surface-container-high transition-colors duration-500 text-on-surface border border-outline-variant"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteCase}
-                className="px-4 py-2 rounded-lg font-bold text-sm bg-error hover:bg-[#b91c1c] transition-colors duration-500 text-white shadow-sm flex items-center gap-1.5"
+                disabled={deleteConfirmText !== `Confirm${formatCaseId(deleteConfirmId)}`}
+                className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-error hover:bg-[#b91c1c] transition-colors duration-500 text-white shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-error"
               >
                 <span className="material-symbols-outlined text-[16px] transition-colors duration-500">delete_forever</span>
                 Delete Record

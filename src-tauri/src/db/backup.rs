@@ -7,11 +7,11 @@ pub fn export_csv(connection: &rusqlite::Connection, csv_path: &Path) -> Result<
     wtr.write_record(&[
         "id", "students", "date", "date_filed", "case", "description", 
         "sanction", "progress", "proofs", "first_name", "last_name", 
-        "middle_initial", "level", "section", "adviser", "title"
+        "middle_initial", "level", "section", "adviser", "title", "reporting_student"
     ]).map_err(|e| e.to_string())?;
 
     let mut stmt = connection.prepare(
-        r#"SELECT id, students, date, date_filed, "case", description, sanction, progress, proofs, first_name, last_name, middle_initial, level, section, adviser, title FROM cases"#
+        r#"SELECT id, students, date, date_filed, "case", description, sanction, progress, proofs, first_name, last_name, middle_initial, level, section, adviser, title, reporting_student FROM cases"#
     ).map_err(|e| e.to_string())?;
     
     let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
@@ -34,6 +34,7 @@ pub fn export_csv(connection: &rusqlite::Connection, csv_path: &Path) -> Result<
             row.get::<_, String>("section").unwrap_or_default(),
             row.get::<_, String>("adviser").unwrap_or_default(),
             row.get::<_, String>("title").unwrap_or_default(),
+            row.get::<_, String>("reporting_student").unwrap_or_default(),
         ]).map_err(|e| e.to_string())?;
     }
     

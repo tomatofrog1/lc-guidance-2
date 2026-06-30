@@ -128,33 +128,33 @@ const getBadgeClassAndColor = (progress: string) => {
   const normalizedProgress = progress.toLowerCase();
   if (normalizedProgress === "resolved") {
     return { 
-      bg: "bg-secondary-container", 
-      text: "text-on-secondary-container", 
-      border: "border-secondary-fixed-dim",
-      dot: "bg-secondary"
+      bg: "badge-resolved",
+      text: "",
+      border: "",
+      dot: "bg-current"
     };
   }
   if (normalizedProgress === "closed") {
     return {
-      bg: "bg-surface-container-high",
-      text: "text-on-surface-variant",
-      border: "border-outline-variant",
-      dot: "bg-outline"
+      bg: "badge-closed",
+      text: "",
+      border: "",
+      dot: "bg-current"
     };
   }
   if (normalizedProgress.includes("reprimand")) {
     return { 
-      bg: "bg-tertiary-container", 
-      text: "text-on-tertiary-container", 
-      border: "border-[#ffb4a7]", 
-      dot: "bg-tertiary"
+      bg: "badge-reprimand",
+      text: "",
+      border: "",
+      dot: "bg-current"
     };
   }
   return { 
-    bg: "bg-error-container", 
-    text: "text-on-error-container", 
-    border: "border-[#ffb4a7]",
-    dot: "bg-error"
+    bg: "badge-pending",
+    text: "",
+    border: "",
+    dot: "bg-current"
   };
 };interface TooltipProps {
   grade: string;
@@ -750,10 +750,10 @@ export default function SummaryReports() {
               <thead>
                 <tr className="border-b border-outline-variant/30 bg-surface-container-low text-label-caps font-label-caps text-secondary text-xs">
                   <th className="px-6 py-3.5">Case ID</th>
-                  <th className="px-6 py-3.5">Student(s)</th>
+                  <th className="px-6 py-3.5">Student(s) Involved</th>
                   <th className="px-6 py-3.5">Level & Section</th>
                   <th className="px-6 py-3.5">Case Category</th>
-                  <th className="px-6 py-3.5">Progress</th>
+                  <th className="px-6 py-3.5 text-center">Progress</th>
                   <th className="px-6 py-3.5 text-right">Date Filed</th>
                 </tr>
               </thead>
@@ -785,7 +785,7 @@ export default function SummaryReports() {
                       <td className="px-6 py-4 text-on-surface-variant">
                         {caseRecord.case}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-center">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-DEFAULT ${badge.bg} ${badge.text} border ${badge.border} font-label-caps text-label-caps`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`}></span> {caseRecord.progress}
                         </span>
@@ -853,7 +853,7 @@ export default function SummaryReports() {
                 <div className="w-1/4">
                   <p className="font-body-md text-body-md text-on-surface-variant">{caseRecord.case}</p>
                 </div>
-                <div className="w-1/6">
+                <div className="w-1/6 flex justify-center">
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-DEFAULT ${badge.bg} ${badge.text} border ${badge.border} font-label-caps text-label-caps`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`}></span> {caseRecord.progress}
                   </span>
@@ -1004,21 +1004,17 @@ export default function SummaryReports() {
             <thead>
               <tr style={{ backgroundColor: "#f3f4f6", borderBottom: "1px solid #d1d5db", color: "#000000" }}>
                 <th style={{ padding: "8px", fontWeight: "bold" }}>Case ID</th>
-                <th style={{ padding: "8px", fontWeight: "bold" }}>Student Name(s)</th>
+                <th style={{ padding: "8px", fontWeight: "bold" }}>Student(s) Involved</th>
                 <th style={{ padding: "8px", fontWeight: "bold" }}>Level & Section</th>
                 <th style={{ padding: "8px", fontWeight: "bold" }}>Category</th>
-                <th style={{ padding: "8px", fontWeight: "bold" }}>Status</th>
+                <th style={{ padding: "8px", fontWeight: "bold", textAlign: "center" }}>Status</th>
                 <th style={{ padding: "8px", fontWeight: "bold", textAlign: "right" }}>Date Filed</th>
               </tr>
             </thead>
             <tbody>
               {activeCases.map((caseRecord) => {
                 const students = parseStudents(caseRecord.students);
-                const progressColor = caseRecord.progress.toLowerCase() === "resolved" || caseRecord.progress.toLowerCase() === "closed"
-                  ? "#0F6E56"
-                  : caseRecord.progress.toLowerCase().includes("reprimand")
-                  ? "#A32D2D"
-                  : "#D9A23B";
+                const badge = getBadgeClassAndColor(caseRecord.progress);
 
                 return (
                   <tr key={caseRecord.id} style={{ borderBottom: "1px solid #e5e7eb", color: "#000000" }}>
@@ -1038,7 +1034,11 @@ export default function SummaryReports() {
                       })()}
                     </td>
                     <td style={{ padding: "8px" }}>{caseRecord.case}</td>
-                    <td style={{ padding: "8px", color: progressColor, fontWeight: "bold" }}>{caseRecord.progress}</td>
+                    <td style={{ padding: "8px", textAlign: "center" }}>
+                      <span className={`${badge.bg} border`} style={{ display: "inline-block", minWidth: "76px", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", textAlign: "center", textTransform: "uppercase" }}>
+                        {caseRecord.progress}
+                      </span>
+                    </td>
                     <td style={{ padding: "8px", textAlign: "right" }}>
                       {new Date(caseRecord.date_filed || caseRecord.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
