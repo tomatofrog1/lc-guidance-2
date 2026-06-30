@@ -15,6 +15,7 @@ export interface CaseRecord {
   proofs: string;
   students: string;
   title: string;
+  reporting_student?: string;
 }
 
 export interface ImportRow {

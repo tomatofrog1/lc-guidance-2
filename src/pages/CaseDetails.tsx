@@ -16,6 +16,8 @@ interface StudentInfo {
   adviser: string;
 }
 
+type ReportingStudentInfo = StudentInfo;
+
 interface CaseRecord {
   id: number;
   students: string;
@@ -27,6 +29,7 @@ interface CaseRecord {
   progress: string;
   proofs: string;
   title: string;
+  reporting_student: string;
 }
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
@@ -37,6 +40,25 @@ const parseStudents = (studentsStr: string): StudentInfo[] => {
   }
 };
 
+const parseReportingStudent = (value: string): ReportingStudentInfo | null => {
+  if (!value?.trim()) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed as ReportingStudentInfo : null;
+  } catch {
+    return null;
+  }
+};
+
+const emptyReportingStudent = (): ReportingStudentInfo => ({
+  firstName: "",
+  lastName: "",
+  middleInitial: "",
+  level: "",
+  section: "",
+  adviser: "",
+});
+
 interface ProofItem {
   name: string;
   data: string;
@@ -46,6 +68,7 @@ interface ProofItem {
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
 const TEXT_FIELD_LIMIT = 250;
+const CASE_TITLE_LIMIT = 20;
 const MODAL_EXIT_MS = 200;
 const CASE_TYPE_OPTIONS = [
   "Poor academic performance",
@@ -240,6 +263,8 @@ export default function CaseDetails() {
     sanction: "",
     progress: "Pending",
     title: "",
+    hasReportingStudent: false,
+    reportingStudent: emptyReportingStudent(),
   });
 
   // Proofs State
@@ -319,6 +344,8 @@ export default function CaseDetails() {
       sanction: record.sanction,
       progress: record.progress,
       title: record.title || "",
+      hasReportingStudent: Boolean(parseReportingStudent(record.reporting_student)),
+      reportingStudent: parseReportingStudent(record.reporting_student) ?? emptyReportingStudent(),
     });
   }, []);
 
@@ -345,6 +372,22 @@ export default function CaseDetails() {
         return student;
       }),
     }));
+  };
+
+  const handleEditReportingStudentBlur = (field: keyof ReportingStudentInfo) => {
+    setEditForm((previous) => {
+      const reporter = previous.reportingStudent;
+      if (field === "firstName" || field === "lastName" || field === "adviser") {
+        return { ...previous, reportingStudent: { ...reporter, [field]: capitalizeWords(reporter[field]) } };
+      }
+      if (field === "middleInitial") {
+        return { ...previous, reportingStudent: { ...reporter, middleInitial: normalizeMiddleInitial(reporter.middleInitial) } };
+      }
+      if (field === "level") {
+        return { ...previous, reportingStudent: { ...reporter, level: normalizeGradeLevel(reporter.level) } };
+      }
+      return { ...previous, reportingStudent: { ...reporter, section: normalizeSection(reporter.section) } };
+    });
   };
 
   const closeCancelConfirm = (discardChanges = false) => {
@@ -485,6 +528,21 @@ export default function CaseDetails() {
     if (!caseRecord) return;
     const date = editForm.date > getTodayDateString() ? getTodayDateString() : editForm.date;
     const normalizedStudents = editForm.students.map(normalizeStudent);
+    const normalizedReportingStudent = editForm.hasReportingStudent
+      ? normalizeStudent(editForm.reportingStudent)
+      : null;
+    const normalizedTitle = capitalizeWords(editForm.title).slice(0, CASE_TITLE_LIMIT);
+    if (
+      normalizedReportingStudent &&
+      (!normalizedReportingStudent.firstName ||
+        !normalizedReportingStudent.lastName ||
+        !normalizedReportingStudent.level ||
+        !normalizedReportingStudent.section ||
+        !normalizedReportingStudent.adviser)
+    ) {
+      alert("Please complete the reporting student information.");
+      return;
+    }
     try {
       await invoke("update_case", {
         id: caseRecord.id,
@@ -496,7 +554,10 @@ export default function CaseDetails() {
         sanction: editForm.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
         progress: editForm.progress,
         proofs: caseRecord.proofs,
-        title: editForm.title.trim(),
+        title: normalizedTitle,
+        reportingStudent: normalizedReportingStudent
+          ? JSON.stringify(normalizedReportingStudent)
+          : "",
       });
       setIsEditing(false);
       window.dispatchEvent(new Event("cases:changed"));
@@ -676,7 +737,7 @@ export default function CaseDetails() {
           {/* Left Column — Student Information */}
           <div className="space-y-4">
             <div className="flex items-center gap-4 mb-4">
-              <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Student Information</span>
+              <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Student(s) Involved</span>
             </div>
 
             {isEditing ? (
@@ -775,19 +836,133 @@ export default function CaseDetails() {
             )}
           </div>
 
+          {(isEditing || parseReportingStudent(caseRecord.reporting_student)) && (
+            <div className="space-y-4 border-t border-outline-variant/70 pt-8">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Report Source</span>
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => setEditForm((previous) => ({
+                      ...previous,
+                      hasReportingStudent: !previous.hasReportingStudent,
+                      reportingStudent: previous.hasReportingStudent
+                        ? emptyReportingStudent()
+                        : previous.reportingStudent,
+                    }))}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+                      editForm.hasReportingStudent
+                        ? "border-primary bg-primary text-on-primary"
+                        : "border-outline-variant bg-surface text-secondary"
+                    }`}
+                  >
+                    {editForm.hasReportingStudent ? "Reported by a student" : "Not reported by a student"}
+                  </button>
+                )}
+              </div>
+
+              <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                (isEditing ? editForm.hasReportingStudent : Boolean(parseReportingStudent(caseRecord.reporting_student)))
+                  ? "grid-rows-[1fr] opacity-100"
+                  : "grid-rows-[0fr] opacity-0 pointer-events-none"
+              }`}>
+                <div className="min-h-0 overflow-hidden">
+                {(() => {
+                  const reporter = isEditing ? editForm.reportingStudent : parseReportingStudent(caseRecord.reporting_student);
+                  if (!reporter) return null;
+
+                  const fields: Array<{ label: string; key: keyof ReportingStudentInfo }> = [
+                    { label: "Last Name", key: "lastName" },
+                    { label: "First Name", key: "firstName" },
+                    { label: "Middle Initial", key: "middleInitial" },
+                    { label: "Level", key: "level" },
+                    { label: "Section", key: "section" },
+                    { label: "Adviser", key: "adviser" },
+                  ];
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5">
+                      {fields.map(({ label, key }) => (
+                        <div key={key}>
+                          <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">{label}</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={reporter[key]}
+                              list={key === "level" ? "case-details-grade-level-options" : key === "section" ? "case-details-section-options" : undefined}
+                              onChange={(event) => setEditForm((previous) => ({
+                                ...previous,
+                                reportingStudent: { ...previous.reportingStudent, [key]: event.target.value },
+                              }))}
+                              onBlur={() => handleEditReportingStudentBlur(key)}
+                              className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                            />
+                          ) : (
+                            <p className="text-sm font-medium text-on-surface">{reporter[key] || "—"}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Right Column — Case Information */}
           <div className="space-y-6 border-t border-outline-variant/70 pt-8">
             <div className="flex items-center gap-4 mb-4">
               <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Case Information</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-x-8 gap-y-6">
-              <div className="md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-6">
+              {(caseRecord.title || (isEditing && editForm.students.length > 1)) && (
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Case Title</label>
+                  {isEditing ? (
+                    <div className="w-44 max-w-full">
+                      <input
+                        type="text"
+                        value={editForm.title}
+                        placeholder="Case title"
+                        maxLength={CASE_TITLE_LIMIT}
+                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value.slice(0, CASE_TITLE_LIMIT) })}
+                        onBlur={() => setEditForm((p) => ({ ...p, title: capitalizeWords(p.title).slice(0, CASE_TITLE_LIMIT) }))}
+                        className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                      />
+                      <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                        {editForm.title.length}/{CASE_TITLE_LIMIT}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm font-medium text-on-surface leading-relaxed break-words [overflow-wrap:anywhere]">{caseRecord.title}</p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Case Type</label>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editForm.case}
+                    list="case-details-case-type-options"
+                    onChange={(e) => setEditForm({ ...editForm, case: e.target.value })}
+                    onBlur={() => setEditForm((p) => ({ ...p, case: normalizeCaseType(p.case) }))}
+                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                  />
+                ) : (
+                  <p className="text-sm font-medium text-on-surface leading-relaxed">{caseRecord.case}</p>
+                )}
+              </div>
+
+              <div>
                 <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Date Filed</label>
                 <p className="text-sm font-medium text-on-surface">{formatDateTime(caseRecord.date_filed)}</p>
               </div>
 
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Date of Incident</label>
                 {isEditing ? (
                   <input
@@ -805,61 +980,7 @@ export default function CaseDetails() {
                 )}
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Case Type</label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={editForm.case}
-                    list="case-details-case-type-options"
-                    onChange={(e) => setEditForm({ ...editForm, case: e.target.value })}
-                    onBlur={() => setEditForm((p) => ({ ...p, case: normalizeCaseType(p.case) }))}
-                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
-                  />
-                ) : (
-                  <p className="text-sm font-medium text-on-surface leading-relaxed">{caseRecord.case}</p>
-                )}
-              </div>
-
-              {(isEditing || caseRecord.title) && (
-                <div className="md:col-span-1">
-                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Case Title</label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editForm.title}
-                      placeholder="Optional title"
-                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
-                    />
-                  ) : (
-                    <p className="text-sm font-medium text-on-surface leading-relaxed">{caseRecord.title}</p>
-                  )}
-                </div>
-              )}
-
-              <div className="md:col-span-3">
-                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Description</label>
-                {isEditing ? (
-                  <>
-                    <textarea
-                      value={editForm.description}
-                      maxLength={TEXT_FIELD_LIMIT}
-                      onChange={(e) => setEditForm({ ...editForm, description: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full h-28 resize-none"
-                    />
-                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
-                      {editForm.description.length}/{TEXT_FIELD_LIMIT}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm font-medium text-on-surface leading-relaxed text-justify whitespace-pre-wrap">
-                    {caseRecord.description || "No description provided."}
-                  </p>
-                )}
-              </div>
-
-              <div className="md:col-span-3">
+              <div className="md:col-start-1 md:col-span-2 min-w-0">
                 <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Sanction/Action Taken</label>
                 {isEditing ? (
                   <>
@@ -874,8 +995,29 @@ export default function CaseDetails() {
                     </p>
                   </>
                 ) : (
-                  <p className="text-sm font-medium text-on-surface leading-relaxed text-justify whitespace-pre-wrap">
+                  <p className="text-sm font-medium text-on-surface leading-relaxed text-justify whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                     {caseRecord.sanction || "No action taken logged yet."}
+                  </p>
+                )}
+              </div>
+
+              <div className="md:col-span-2 min-w-0">
+                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Description</label>
+                {isEditing ? (
+                  <>
+                    <textarea
+                      value={editForm.description}
+                      maxLength={TEXT_FIELD_LIMIT}
+                      onChange={(e) => setEditForm({ ...editForm, description: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full h-28 resize-none"
+                    />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {editForm.description.length}/{TEXT_FIELD_LIMIT}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm font-medium text-on-surface leading-relaxed text-justify whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                    {caseRecord.description || "No description provided."}
                   </p>
                 )}
               </div>

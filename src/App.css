@@ -252,13 +252,15 @@
   }
 
   .case-toast-x-enter {
-    animation: toast-x-in 1s cubic-bezier(0.22, 1, 0.36, 1) both;
-    will-change: opacity, transform;
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
   }
 
   .case-toast-x-exit {
-    animation: toast-x-out 1s cubic-bezier(0.55, 0, 0.45, 1) both;
-    will-change: opacity, transform;
+    opacity: 0;
+    transform: translateX(16px);
+    pointer-events: none;
   }
 
   .filter-dropdown-enter {
@@ -272,6 +274,8 @@
     max-width: min(420px, calc(100vw - 2.5rem));
     padding: 1rem 1.25rem !important;
     border-radius: 0.875rem !important;
+    transition: opacity 240ms ease-out, transform 240ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+    will-change: opacity, transform;
   }
 
   .app-toast .material-symbols-outlined {
@@ -611,6 +615,10 @@ input[type="password"]::-webkit-caps-lock-indicator {
   .additional-student-card-enter,
   .additional-student-card-exit {
     animation: none;
+  }
+
+  .app-toast {
+    transition: none !important;
   }
 
   .center-fill-option::before {
