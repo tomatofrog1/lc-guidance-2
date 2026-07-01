@@ -28,6 +28,7 @@ pub struct CaseRecord {
     pub students: String,
     pub title: String,
     pub reporting_student: String,
+    pub group_id: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -73,6 +74,7 @@ pub fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
         students: row.get("students")?,
         title: row.get("title")?,
         reporting_student: row.get("reporting_student")?,
+        group_id: row.get("group_id").unwrap_or(None),
     })
 }
 
@@ -360,7 +362,7 @@ pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
     let mut statement = connection
         .prepare(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id
 FROM cases
 ORDER BY id DESC
 "#,
@@ -389,6 +391,7 @@ pub fn add_case(
     proofs: String,
     title: String,
     reporting_student: Option<String>,
+    group_id: Option<String>,
 ) -> Result<i64, String> {
     let primary_student = primary_student(&students)?;
     let connection = state.connection.lock().map_err(db_error)?;
@@ -397,12 +400,13 @@ pub fn add_case(
         .execute(
             r#"
 INSERT INTO cases (
-  students, date, date_filed, "case", description, sanction, progress, proofs, title, reporting_student, first_name, last_name, middle_initial, level, section, adviser
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+  students, date, date_filed, "case", description, sanction, progress, proofs, title, reporting_student, group_id, first_name, last_name, middle_initial, level, section, adviser
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
 "#,
             params![
                 students, date, date_filed, r#case, description,
                 sanction, progress, proofs, title, reporting_student.unwrap_or_default(),
+                group_id,
                 primary_student.first_name, primary_student.last_name,
                 primary_student.middle_initial, primary_student.level,
                 primary_student.section, primary_student.adviser
@@ -427,6 +431,7 @@ pub fn update_case(
     proofs: String,
     title: String,
     reporting_student: Option<String>,
+    group_id: Option<String>,
 ) -> Result<(), String> {
     let primary_student = primary_student(&students)?;
     let connection = state.connection.lock().map_err(db_error)?;
@@ -445,17 +450,19 @@ SET students = ?1,
     proofs = ?8,
     title = ?9,
     reporting_student = COALESCE(?10, reporting_student),
-    first_name = ?11,
-    last_name = ?12,
-    middle_initial = ?13,
-    level = ?14,
-    section = ?15,
-    adviser = ?16
-WHERE id = ?17
+    group_id = ?11,
+    first_name = ?12,
+    last_name = ?13,
+    middle_initial = ?14,
+    level = ?15,
+    section = ?16,
+    adviser = ?17
+WHERE id = ?18
 "#,
             params![
                 students, date, date_filed, r#case, description,
                 sanction, progress, proofs, title, reporting_student,
+                group_id,
                 primary_student.first_name, primary_student.last_name,
                 primary_student.middle_initial, primary_student.level,
                 primary_student.section, primary_student.adviser, id

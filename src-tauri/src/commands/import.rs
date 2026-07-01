@@ -358,6 +358,7 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
                         students: prev.students.clone(),
                         title: prev.title.clone(),
                         reporting_student: String::new(),
+                        group_id: None,
                     });
                 }
             }

@@ -14,9 +14,9 @@ interface StudentInfo {
   level: string;
   section: string;
   adviser: string;
+  role: string;
+  sanction?: string;
 }
-
-type ReportingStudentInfo = StudentInfo;
 
 interface CaseRecord {
   id: number;
@@ -29,7 +29,8 @@ interface CaseRecord {
   progress: string;
   proofs: string;
   title: string;
-  reporting_student: string;
+  reporting_student?: string;
+  group_id?: string | null;
 }
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
@@ -40,24 +41,7 @@ const parseStudents = (studentsStr: string): StudentInfo[] => {
   }
 };
 
-const parseReportingStudent = (value: string): ReportingStudentInfo | null => {
-  if (!value?.trim()) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object" ? parsed as ReportingStudentInfo : null;
-  } catch {
-    return null;
-  }
-};
 
-const emptyReportingStudent = (): ReportingStudentInfo => ({
-  firstName: "",
-  lastName: "",
-  middleInitial: "",
-  level: "",
-  section: "",
-  adviser: "",
-});
 
 interface ProofItem {
   name: string;
@@ -67,6 +51,7 @@ interface ProofItem {
 
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
+const ROLE_OPTIONS = ["Complainant", "Reporter", "Accused"];
 const TEXT_FIELD_LIMIT = 250;
 const CASE_TITLE_LIMIT = 20;
 const MODAL_EXIT_MS = 200;
@@ -156,6 +141,10 @@ const capitalizeWords = (value: string) =>
     .map((word) => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : "")
     .join(" ");
 
+const autoCapitalize = (val: string) => {
+  return val.replace(/(^|\s)\p{L}/gu, (match) => match.toUpperCase());
+};
+
 const normalizeCaseType = (value: string) => capitalizeWords(value);
 
 const normalizeMiddleInitial = (value: string) => value.replace(/\s+/g, "").toUpperCase();
@@ -184,6 +173,7 @@ const normalizeStudent = (student: StudentInfo): StudentInfo => ({
   level: normalizeGradeLevel(student.level),
   section: normalizeSection(student.section),
   adviser: capitalizeWords(student.adviser),
+  role: student.role,
 });
 
 const parseProofs = (value: string): ProofItem[] => {
@@ -263,8 +253,6 @@ export default function CaseDetails() {
     sanction: "",
     progress: "Pending",
     title: "",
-    hasReportingStudent: false,
-    reportingStudent: emptyReportingStudent(),
   });
 
   // Proofs State
@@ -344,16 +332,21 @@ export default function CaseDetails() {
       sanction: record.sanction,
       progress: record.progress,
       title: record.title || "",
-      hasReportingStudent: Boolean(parseReportingStudent(record.reporting_student)),
-      reportingStudent: parseReportingStudent(record.reporting_student) ?? emptyReportingStudent(),
     });
   }, []);
 
   const handleEditStudentChange = (index: number, field: keyof StudentInfo, value: string) => {
+    let processedValue = value;
+    if (field === "firstName" || field === "lastName" || field === "adviser") {
+      processedValue = autoCapitalize(value);
+    } else if (field === "middleInitial") {
+      processedValue = value.replace(/\s+/g, "").toUpperCase();
+    }
+
     setEditForm((previous) => ({
       ...previous,
       students: previous.students.map((student, studentIndex) =>
-        studentIndex === index ? { ...student, [field]: value } : student
+        studentIndex === index ? { ...student, [field]: processedValue } : student
       ),
     }));
   };
@@ -363,7 +356,7 @@ export default function CaseDetails() {
       ...previous,
       students: previous.students.map((student, studentIndex) => {
         if (studentIndex !== index) return student;
-        if (field === "firstName" || field === "lastName" || field === "adviser") {
+        if (field === "firstName" || field === "lastName" || field === "adviser" || field === "role") {
           return { ...student, [field]: capitalizeWords(student[field]) };
         }
         if (field === "middleInitial") return { ...student, middleInitial: normalizeMiddleInitial(student.middleInitial) };
@@ -374,20 +367,43 @@ export default function CaseDetails() {
     }));
   };
 
-  const handleEditReportingStudentBlur = (field: keyof ReportingStudentInfo) => {
-    setEditForm((previous) => {
-      const reporter = previous.reportingStudent;
-      if (field === "firstName" || field === "lastName" || field === "adviser") {
-        return { ...previous, reportingStudent: { ...reporter, [field]: capitalizeWords(reporter[field]) } };
+
+
+  const isFormDirty = () => {
+    if (!caseRecord) return false;
+    const initialStudents = parseStudents(caseRecord.students);
+    
+    if (initialStudents.length !== editForm.students.length) return true;
+    for (let i = 0; i < initialStudents.length; i++) {
+      const s1 = initialStudents[i];
+      const s2 = editForm.students[i];
+      if (
+        s1.firstName !== s2.firstName ||
+        s1.lastName !== s2.lastName ||
+        s1.middleInitial !== s2.middleInitial ||
+        s1.level !== s2.level ||
+        s1.section !== s2.section ||
+        s1.adviser !== s2.adviser ||
+        s1.role !== s2.role ||
+        (s1.sanction ?? "") !== (s2.sanction ?? "")
+      ) {
+        return true;
       }
-      if (field === "middleInitial") {
-        return { ...previous, reportingStudent: { ...reporter, middleInitial: normalizeMiddleInitial(reporter.middleInitial) } };
-      }
-      if (field === "level") {
-        return { ...previous, reportingStudent: { ...reporter, level: normalizeGradeLevel(reporter.level) } };
-      }
-      return { ...previous, reportingStudent: { ...reporter, section: normalizeSection(reporter.section) } };
-    });
+    }
+
+    if (
+      editForm.date !== caseRecord.date ||
+      editForm.date_filed !== caseRecord.date_filed ||
+      editForm.case !== caseRecord.case ||
+      editForm.description !== caseRecord.description ||
+      editForm.sanction !== caseRecord.sanction ||
+      editForm.progress !== caseRecord.progress ||
+      editForm.title !== (caseRecord.title || "")
+    ) {
+      return true;
+    }
+
+    return false;
   };
 
   const closeCancelConfirm = (discardChanges = false) => {
@@ -445,6 +461,8 @@ export default function CaseDetails() {
           progress: data.progress,
           proofs: JSON.stringify(proofs),
           title: data.title,
+          reportingStudent: data.reporting_student || "",
+          groupId: data.group_id || null
         });
         localStorage.removeItem(`case_proofs_${id}`);
       }
@@ -475,6 +493,8 @@ export default function CaseDetails() {
       progress: caseRecord.progress,
       proofs: JSON.stringify(proofs),
       title: caseRecord.title,
+      reportingStudent: caseRecord.reporting_student || "",
+      groupId: caseRecord.group_id || null
     });
     setUploadedProofs(proofs);
     setCaseRecord({ ...caseRecord, proofs: JSON.stringify(proofs) });
@@ -528,21 +548,7 @@ export default function CaseDetails() {
     if (!caseRecord) return;
     const date = editForm.date > getTodayDateString() ? getTodayDateString() : editForm.date;
     const normalizedStudents = editForm.students.map(normalizeStudent);
-    const normalizedReportingStudent = editForm.hasReportingStudent
-      ? normalizeStudent(editForm.reportingStudent)
-      : null;
     const normalizedTitle = capitalizeWords(editForm.title).slice(0, CASE_TITLE_LIMIT);
-    if (
-      normalizedReportingStudent &&
-      (!normalizedReportingStudent.firstName ||
-        !normalizedReportingStudent.lastName ||
-        !normalizedReportingStudent.level ||
-        !normalizedReportingStudent.section ||
-        !normalizedReportingStudent.adviser)
-    ) {
-      alert("Please complete the reporting student information.");
-      return;
-    }
     try {
       await invoke("update_case", {
         id: caseRecord.id,
@@ -555,9 +561,8 @@ export default function CaseDetails() {
         progress: editForm.progress,
         proofs: caseRecord.proofs,
         title: normalizedTitle,
-        reportingStudent: normalizedReportingStudent
-          ? JSON.stringify(normalizedReportingStudent)
-          : "",
+        reportingStudent: caseRecord.reporting_student || "",
+        groupId: caseRecord.group_id || null
       });
       setIsEditing(false);
       window.dispatchEvent(new Event("cases:changed"));
@@ -612,6 +617,7 @@ export default function CaseDetails() {
         ))}
       </datalist>
 
+
       {/* Sub-header / Actions matching the design layout */}
       <div className="flex justify-between items-center mb-4 mt-2 print:hidden">
         <span className="font-data-mono text-xs font-semibold bg-surface border border-outline-variant px-3 py-1.5 rounded-lg text-secondary">
@@ -629,8 +635,12 @@ export default function CaseDetails() {
               </button>
               <button
                 onClick={() => {
-                  setIsCancelConfirmClosing(false);
-                  setShowCancelConfirm(true);
+                  if (isFormDirty()) {
+                    setIsCancelConfirmClosing(false);
+                    setShowCancelConfirm(true);
+                  } else {
+                    setIsEditing(false);
+                  }
                 }}
                 className="border border-outline-variant bg-surface text-on-surface font-bold py-2 px-5 rounded-lg flex items-center gap-1.5 hover:bg-surface-container transition-colors duration-500 text-xs print:hidden"
               >
@@ -683,51 +693,35 @@ export default function CaseDetails() {
             <img src={guidanceLogo} alt="Guidance Office Logo" className="w-[78px] h-[78px] object-contain justify-self-end" />
           </div>
 
-          {!isExporting && (
+          {!isExporting && isEditing && (
             <div className="mt-4 flex justify-end print:hidden">
-              {isEditing ? (
-                <div className="flex flex-col items-end gap-1.5">
-                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mr-2">Progress</label>
-                  <div className="flex gap-2">
-                    {PROGRESS_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, progress: opt.value })}
-                        className={`center-fill-option px-3 py-1.5 rounded font-bold text-xs border transition-all duration-500 text-center ${
-                          editForm.progress.toLowerCase() === opt.value.toLowerCase() ? "center-fill-option-selected" : ""
-                        }`}
-                        style={editForm.progress.toLowerCase() === opt.value.toLowerCase()
-                          ? { background: opt.bg, borderColor: opt.dot, color: opt.text }
-                          : {
-                            background: "transparent",
-                            borderColor: "var(--color-outline-variant)",
-                            color: "var(--color-secondary)",
-                            ["--fill-hover-bg" as string]: opt.bg,
-                            ["--fill-hover-border" as string]: opt.border,
-                          }
+              <div className="flex flex-col items-end gap-1.5">
+                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mr-2">Progress</label>
+                <div className="flex gap-2">
+                  {PROGRESS_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, progress: opt.value })}
+                      className={`center-fill-option px-3 py-1.5 rounded font-bold text-xs border transition-all duration-500 text-center ${
+                        editForm.progress.toLowerCase() === opt.value.toLowerCase() ? "center-fill-option-selected" : ""
+                      }`}
+                      style={editForm.progress.toLowerCase() === opt.value.toLowerCase()
+                        ? { background: opt.bg, borderColor: opt.dot, color: opt.text }
+                        : {
+                          background: "transparent",
+                          borderColor: "var(--color-outline-variant)",
+                          color: "var(--color-secondary)",
+                          ["--fill-hover-bg" as string]: opt.bg,
+                          ["--fill-hover-border" as string]: opt.border,
                         }
-                      >
-                        <span className="relative z-10 transition-colors duration-500">{opt.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                      }
+                    >
+                      <span className="relative z-10 transition-colors duration-500">{opt.label}</span>
+                    </button>
+                  ))}
                 </div>
-              ) : (
-                <div
-                  className={`pdf-status-indicator border-[3px] font-black text-lg px-6 py-1.5 rounded uppercase tracking-widest transform -rotate-[6deg] inline-block select-none ${
-                    caseRecord.progress.toLowerCase() === "resolved"
-                      ? "border-[#15803d] text-[#15803d] dark:border-[#34A06A]/70 dark:text-[#34A06A]"
-                      : caseRecord.progress.toLowerCase() === "closed"
-                      ? "border-[#4b5563] text-[#4b5563] dark:border-[#9ca3af]/70 dark:text-[#9ca3af]"
-                      : caseRecord.progress.toLowerCase() === "reprimand"
-                      ? "border-[#dc2626] text-[#dc2626] dark:border-[#ef4444]/70 dark:text-[#ef4444]"
-                      : "border-[#d97706] text-[#d97706] dark:border-[#D9A23B]/70 dark:text-[#D9A23B]"
-                  }`}
-                >
-                  {caseRecord.progress}
-                </div>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -742,7 +736,7 @@ export default function CaseDetails() {
 
             {isEditing ? (
               editForm.students.map((student, idx) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
+                <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
                     <div className="flex gap-2">
@@ -750,7 +744,7 @@ export default function CaseDetails() {
                         type="text"
                         value={student.lastName}
                         placeholder="Last Name"
-                        onChange={(e) => handleEditStudentChange(idx, "lastName", e.target.value)}
+                        onChange={(e) => handleEditStudentChange(idx, "lastName", autoCapitalize(e.target.value))}
                         onBlur={() => handleEditStudentBlur(idx, "lastName")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                       />
@@ -758,7 +752,7 @@ export default function CaseDetails() {
                         type="text"
                         value={student.firstName}
                         placeholder="First Name"
-                        onChange={(e) => handleEditStudentChange(idx, "firstName", e.target.value)}
+                        onChange={(e) => handleEditStudentChange(idx, "firstName", autoCapitalize(e.target.value))}
                         onBlur={() => handleEditStudentBlur(idx, "firstName")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                       />
@@ -767,11 +761,24 @@ export default function CaseDetails() {
                         value={student.middleInitial}
                         placeholder="M.I."
                         maxLength={3}
-                        onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value)}
+                        onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
                         onBlur={() => handleEditStudentBlur(idx, "middleInitial")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-16"
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
+                    <select
+                      value={student.role}
+                      onChange={(e) => handleEditStudentChange(idx, "role", e.target.value)}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                    >
+                      <option value="" disabled>Select a role</option>
+                      {ROLE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>
@@ -803,7 +810,7 @@ export default function CaseDetails() {
                       type="text"
                       value={student.adviser}
                       placeholder="e.g. Mr. Santos"
-                      onChange={(e) => handleEditStudentChange(idx, "adviser", e.target.value)}
+                      onChange={(e) => handleEditStudentChange(idx, "adviser", autoCapitalize(e.target.value))}
                       onBlur={() => handleEditStudentBlur(idx, "adviser")}
                       className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                     />
@@ -812,12 +819,16 @@ export default function CaseDetails() {
               ))
             ) : (
               parseStudents(caseRecord.students).map((student, idx) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
+                <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
                     <p className="text-sm font-medium text-on-surface">
                       {student.lastName}, {student.firstName}{student.middleInitial ? ` ${student.middleInitial}.` : ""}
                     </p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
+                    <p className="text-sm font-medium text-on-surface">{student.role || "—"}</p>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>
@@ -836,79 +847,7 @@ export default function CaseDetails() {
             )}
           </div>
 
-          {(isEditing || parseReportingStudent(caseRecord.reporting_student)) && (
-            <div className="space-y-4 border-t border-outline-variant/70 pt-8">
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Report Source</span>
-                {isEditing && (
-                  <button
-                    type="button"
-                    onClick={() => setEditForm((previous) => ({
-                      ...previous,
-                      hasReportingStudent: !previous.hasReportingStudent,
-                      reportingStudent: previous.hasReportingStudent
-                        ? emptyReportingStudent()
-                        : previous.reportingStudent,
-                    }))}
-                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
-                      editForm.hasReportingStudent
-                        ? "border-primary bg-primary text-on-primary"
-                        : "border-outline-variant bg-surface text-secondary"
-                    }`}
-                  >
-                    {editForm.hasReportingStudent ? "Reported by a student" : "Not reported by a student"}
-                  </button>
-                )}
-              </div>
 
-              <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
-                (isEditing ? editForm.hasReportingStudent : Boolean(parseReportingStudent(caseRecord.reporting_student)))
-                  ? "grid-rows-[1fr] opacity-100"
-                  : "grid-rows-[0fr] opacity-0 pointer-events-none"
-              }`}>
-                <div className="min-h-0 overflow-hidden">
-                {(() => {
-                  const reporter = isEditing ? editForm.reportingStudent : parseReportingStudent(caseRecord.reporting_student);
-                  if (!reporter) return null;
-
-                  const fields: Array<{ label: string; key: keyof ReportingStudentInfo }> = [
-                    { label: "Last Name", key: "lastName" },
-                    { label: "First Name", key: "firstName" },
-                    { label: "Middle Initial", key: "middleInitial" },
-                    { label: "Level", key: "level" },
-                    { label: "Section", key: "section" },
-                    { label: "Adviser", key: "adviser" },
-                  ];
-
-                  return (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5">
-                      {fields.map(({ label, key }) => (
-                        <div key={key}>
-                          <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">{label}</label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={reporter[key]}
-                              list={key === "level" ? "case-details-grade-level-options" : key === "section" ? "case-details-section-options" : undefined}
-                              onChange={(event) => setEditForm((previous) => ({
-                                ...previous,
-                                reportingStudent: { ...previous.reportingStudent, [key]: event.target.value },
-                              }))}
-                              onBlur={() => handleEditReportingStudentBlur(key)}
-                              className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
-                            />
-                          ) : (
-                            <p className="text-sm font-medium text-on-surface">{reporter[key] || "—"}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Right Column — Case Information */}
           <div className="space-y-6 border-t border-outline-variant/70 pt-8">
@@ -927,7 +866,7 @@ export default function CaseDetails() {
                         value={editForm.title}
                         placeholder="Case title"
                         maxLength={CASE_TITLE_LIMIT}
-                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value.slice(0, CASE_TITLE_LIMIT) })}
+                        onChange={(e) => setEditForm({ ...editForm, title: autoCapitalize(e.target.value.slice(0, CASE_TITLE_LIMIT)) })}
                         onBlur={() => setEditForm((p) => ({ ...p, title: capitalizeWords(p.title).slice(0, CASE_TITLE_LIMIT) }))}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                       />
@@ -1020,8 +959,26 @@ export default function CaseDetails() {
                     {caseRecord.description || "No description provided."}
                   </p>
                 )}
-              </div>
             </div>
+          </div>
+
+          {!isEditing && (
+              <div className="flex justify-end mt-4">
+                <div
+                  className={`pdf-status-indicator border-[3px] font-black text-lg px-6 py-1.5 rounded uppercase tracking-widest transform -rotate-[6deg] inline-block select-none ${
+                    caseRecord.progress.toLowerCase() === "resolved"
+                      ? "border-[#15803d] text-[#15803d] dark:border-[#34A06A]/70 dark:text-[#34A06A]"
+                      : caseRecord.progress.toLowerCase() === "closed"
+                      ? "border-[#4b5563] text-[#4b5563] dark:border-[#9ca3af]/70 dark:text-[#9ca3af]"
+                      : caseRecord.progress.toLowerCase() === "reprimand"
+                      ? "border-[#dc2626] text-[#dc2626] dark:border-[#ef4444]/70 dark:text-[#ef4444]"
+                      : "border-[#d97706] text-[#d97706] dark:border-[#D9A23B]/70 dark:text-[#D9A23B]"
+                  }`}
+                >
+                  {caseRecord.progress}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

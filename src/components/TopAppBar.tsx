@@ -55,18 +55,7 @@ export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = 
       </div>
 
       <div className="flex items-center gap-4">
-        {title === "Summary & Reports" && (
-          <div className="relative flex items-center bg-surface border border-outline-variant rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
-            <span className="material-symbols-outlined text-secondary pl-3" style={{ fontSize: '20px' }}>calendar_today</span>
-            <select className="pl-2 pr-8 py-1.5 border-none bg-transparent text-body-md font-body-md text-on-surface-variant focus:ring-0 appearance-none cursor-pointer">
-              <option>Last 30 Days</option>
-              <option>This Semester</option>
-              <option>Academic Year</option>
-              <option>All Time</option>
-            </select>
-            <span className="material-symbols-outlined text-secondary absolute right-2 pointer-events-none" style={{ fontSize: '20px' }}>arrow_drop_down</span>
-          </div>
-        )}
+
         {showNewCaseButton && (
           <div className="flex items-center gap-2">
             {pendingCount > 0 && (
