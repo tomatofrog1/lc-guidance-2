@@ -42,16 +42,16 @@
     break-inside: avoid;
   }
 
-  .case-details-document > div:first-child {
+  .case-details-document>div:first-child {
     padding: 12mm 10mm !important;
   }
 
-  .case-details-document > div:nth-child(2) {
+  .case-details-document>div:nth-child(2) {
     flex: 1;
     padding: 12mm 10mm 8mm !important;
   }
 
-  .case-details-document > div:last-child {
+  .case-details-document>div:last-child {
     padding: 0 10mm 10mm !important;
   }
 }
@@ -63,6 +63,7 @@
     --color-surface-container: #eeeeee;
     --color-surface-container-low: #f3f3f3;
     --color-surface-container-high: #e8e8e8;
+    --color-surface-container-highest: #e2e2e2;
     --color-surface-bright: #ffffff;
     --color-on-surface: #1F2937;
     --color-on-surface-variant: #444652;
@@ -87,7 +88,7 @@
     --badge-closed-bg: #e5e7eb;
     --badge-closed-text: #4b5563;
     --badge-closed-border: #9ca3af;
-    
+
     --badge-pending-bg: #fef3c7;
     --badge-pending-text: #b45309;
     --badge-pending-border: #f59e0b;
@@ -95,7 +96,7 @@
     --badge-reprimand-bg: #fee2e2;
     --badge-reprimand-text: #b91c1c;
     --badge-reprimand-border: #ef4444;
-    
+
     --case-id-bg: #f9fafb;
     --case-id-border: #e5e7eb;
     --case-id-text: #374151;
@@ -107,6 +108,7 @@
     --color-surface-container: #222a33;
     --color-surface-container-low: #1e252d;
     --color-surface-container-high: #2d3743;
+    --color-surface-container-highest: #374252;
     --color-surface-bright: #262f3a;
     --color-on-surface: #F3F3F3;
     --color-on-surface-variant: #a4aab4;
@@ -131,7 +133,7 @@
     --badge-closed-bg: rgba(156, 163, 175, 0.15);
     --badge-closed-text: #9ca3af;
     --badge-closed-border: rgba(156, 163, 175, 0.5);
-    
+
     --badge-pending-bg: rgba(217, 162, 59, 0.15);
     --badge-pending-text: #D9A23B;
     --badge-pending-border: rgba(217, 162, 59, 0.5);
@@ -365,11 +367,11 @@
   .sidebar-collapse-icon-collapsed {
     transform: rotateY(180deg);
   }
-  
+
   .zebra-row:nth-child(even) {
     @apply bg-background;
   }
-  
+
   .zebra-row:nth-child(odd) {
     @apply bg-surface;
   }
@@ -379,21 +381,25 @@
     background-color: var(--badge-pending-bg);
     border-color: var(--badge-pending-border);
   }
+
   .badge-resolved {
     color: var(--badge-resolved-text);
     background-color: var(--badge-resolved-bg);
     border-color: var(--badge-resolved-border);
   }
+
   .badge-closed {
     color: var(--badge-closed-text);
     background-color: var(--badge-closed-bg);
     border-color: var(--badge-closed-border);
   }
+
   .badge-reprimand {
     color: var(--badge-reprimand-text);
     background-color: var(--badge-reprimand-bg);
     border-color: var(--badge-reprimand-border);
   }
+
   .case-id {
     color: var(--case-id-text);
     background-color: var(--case-id-bg);
@@ -638,8 +644,11 @@ input[type="password"]::-webkit-caps-lock-indicator {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 /* Hide scrollbar for IE, Edge and Firefox */
 .no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }

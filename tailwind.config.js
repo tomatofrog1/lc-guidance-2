@@ -13,6 +13,7 @@ export default {
         "surface-container": "var(--color-surface-container)",
         "surface-container-low": "var(--color-surface-container-low)",
         "surface-container-high": "var(--color-surface-container-high)",
+        "surface-container-highest": "var(--color-surface-container-highest)",
         "surface-bright": "var(--color-surface-bright)",
         "on-background": "var(--color-on-surface)",
         "on-surface": "var(--color-on-surface)",

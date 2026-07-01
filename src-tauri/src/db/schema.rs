@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS cases (
   proofs     TEXT NOT NULL DEFAULT '[]',
   students   TEXT NOT NULL DEFAULT '[]',
   title      TEXT NOT NULL DEFAULT '',
-  reporting_student TEXT NOT NULL DEFAULT ''
+  reporting_student TEXT NOT NULL DEFAULT '',
+  group_id   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS app_config (
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
     let mut has_students = false;
     let mut has_title = false;
     let mut has_reporting_student = false;
+    let mut has_group_id = false;
     while let Some(row) = rows.next()? {
         let name: String = row.get(1)?;
         if name == "date_filed" {
@@ -71,6 +73,9 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
         }
         if name == "reporting_student" {
             has_reporting_student = true;
+        }
+        if name == "group_id" {
+            has_group_id = true;
         }
     }
 
@@ -135,6 +140,14 @@ ALTER TABLE cases ADD COLUMN title TEXT NOT NULL DEFAULT '';
         connection.execute_batch(
             r#"
 ALTER TABLE cases ADD COLUMN reporting_student TEXT NOT NULL DEFAULT '';
+"#,
+        )?;
+    }
+
+    if !has_group_id {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN group_id TEXT;
 "#,
         )?;
     }

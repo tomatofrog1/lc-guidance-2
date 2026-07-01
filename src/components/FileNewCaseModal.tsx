@@ -21,9 +21,8 @@ type StudentInfo = {
   section: string;
   adviser: string;
   sanction: string;
+  role: string;
 };
-
-type ReportingStudentInfo = Omit<StudentInfo, "sanction">;
 
 // ── Case category data ──────────────────────────────────────────────────────
 const CASE_CATEGORIES = [
@@ -134,6 +133,7 @@ const PROGRESS_OPTIONS = [
 
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
+const ROLE_OPTIONS = ["Complainant", "Reporter", "Accused"];
 const TEXT_FIELD_LIMIT = 250;
 const CASE_TITLE_LIMIT = 20;
 const MODAL_EXIT_MS = 200;
@@ -154,12 +154,14 @@ function getCategoryForCase(caseStr: string) {
   return null;
 }
 
-const getTodayDateString = () => {
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, "0");
-  const dd = String(today.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+const getTodayDateTimeString = () => {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const min = String(now.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 };
 
 const emptyStudentInfo = (): StudentInfo => ({
@@ -170,27 +172,17 @@ const emptyStudentInfo = (): StudentInfo => ({
   section: "",
   adviser: "",
   sanction: "",
-});
-
-const emptyReportingStudentInfo = (): ReportingStudentInfo => ({
-  firstName: "",
-  lastName: "",
-  middleInitial: "",
-  level: "",
-  section: "",
-  adviser: "",
+  role: "",
 });
 
 const emptyFormData = () => ({
   ...emptyStudentInfo(),
-  date: getTodayDateString(),
+  date: getTodayDateTimeString(),
   case: "",
   caseCategory: "",
   description: "",
   progress: "Pending",
   title: "",
-  hasReportingStudent: false,
-  reportingStudent: emptyReportingStudentInfo(),
   additionalStudents: [] as StudentInfo[],
   uploadedProofs: [] as ProofItem[],
 });
@@ -202,6 +194,10 @@ const capitalizeWords = (value: string) =>
     .split(" ")
     .map((word) => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : "")
     .join(" ");
+
+const autoCapitalize = (val: string) => {
+  return val.replace(/(^|\s)\p{L}/gu, (match) => match.toUpperCase());
+};
 
 const normalizeCaseType = (value: string) => capitalizeWords(value);
 
@@ -234,14 +230,7 @@ const normalizeStudentInfo = (data: ReturnType<typeof emptyFormData>) => ({
   section: normalizeSection(data.section),
   adviser: capitalizeWords(data.adviser),
   sanction: data.sanction.slice(0, TEXT_FIELD_LIMIT),
-  reportingStudent: {
-    firstName: capitalizeWords(data.reportingStudent.firstName),
-    lastName: capitalizeWords(data.reportingStudent.lastName),
-    middleInitial: normalizeMiddleInitial(data.reportingStudent.middleInitial),
-    level: normalizeGradeLevel(data.reportingStudent.level),
-    section: normalizeSection(data.reportingStudent.section),
-    adviser: capitalizeWords(data.reportingStudent.adviser),
-  },
+  role: data.role,
   additionalStudents: data.additionalStudents.map((student) => normalizeStudent(student)),
 });
 
@@ -253,23 +242,8 @@ const normalizeStudent = (student: StudentInfo): StudentInfo => ({
   section: normalizeSection(student.section),
   adviser: capitalizeWords(student.adviser),
   sanction: (student.sanction ?? "").slice(0, TEXT_FIELD_LIMIT),
+  role: student.role,
 });
-
-const normalizeReportingStudentField = (
-  student: ReportingStudentInfo,
-  field: keyof ReportingStudentInfo,
-): ReportingStudentInfo => {
-  if (field === "middleInitial") {
-    return { ...student, middleInitial: normalizeMiddleInitial(student.middleInitial) };
-  }
-  if (field === "level") {
-    return { ...student, level: normalizeGradeLevel(student.level) };
-  }
-  if (field === "section") {
-    return { ...student, section: normalizeSection(student.section) };
-  }
-  return { ...student, [field]: capitalizeWords(student[field]) };
-};
 
 const isStudentComplete = (student: StudentInfo) =>
   Boolean(
@@ -277,16 +251,8 @@ const isStudentComplete = (student: StudentInfo) =>
     student.firstName.trim() &&
     student.level.trim() &&
     student.section.trim() &&
-    student.adviser.trim()
-  );
-
-const isReportingStudentComplete = (student: ReportingStudentInfo) =>
-  Boolean(
-    student.lastName.trim() &&
-    student.firstName.trim() &&
-    student.level.trim() &&
-    student.section.trim() &&
-    student.adviser.trim()
+    student.adviser.trim() &&
+    student.role.trim()
   );
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -314,14 +280,13 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
     !formData.firstName.trim() &&
     !formData.lastName.trim() &&
     !formData.middleInitial.trim() &&
-    !formData.date &&
     !formData.case.trim() &&
     !formData.description.trim() &&
     !formData.sanction.trim() &&
     !formData.level.trim() &&
     !formData.section.trim() &&
     !formData.adviser.trim() &&
-    !formData.hasReportingStudent &&
+    !formData.role.trim() &&
     formData.additionalStudents.length === 0 &&
     formData.uploadedProofs.length === 0;
 
@@ -402,15 +367,8 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
             ...base,
             title: (parsed.title ?? "").slice(0, CASE_TITLE_LIMIT),
             sanction: parsed.sanction ?? "",
-            hasReportingStudent: parsed.hasReportingStudent === true,
-            reportingStudent: parsed.hasReportingStudent === true
-              ? {
-                  ...emptyReportingStudentInfo(),
-                  ...(parsed.reportingStudent ?? {}),
-                }
-              : emptyReportingStudentInfo(),
             additionalStudents: Array.isArray(parsed.additionalStudents)
-              ? parsed.additionalStudents.map((student: StudentInfo) => ({ ...emptyStudentInfo(), ...student, sanction: student.sanction ?? "" }))
+              ? parsed.additionalStudents.map((student: StudentInfo) => ({ ...emptyStudentInfo(), ...student, sanction: student.sanction ?? "", role: student.role ?? "" }))
               : [],
           });
           const cat = getCategoryForCase(parsed.case);
@@ -433,15 +391,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
     setFormData((p) => ({ ...p, case: caseName, caseCategory: categoryId }));
   };
 
-  const setHasReportingStudent = (hasReportingStudent: boolean) => {
-    setFormData((previous) => ({
-      ...previous,
-      hasReportingStudent,
-      reportingStudent: hasReportingStudent
-        ? previous.reportingStudent
-        : emptyReportingStudentInfo(),
-    }));
-  };
+
 
   const handleUploadProof = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -476,10 +426,17 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
   };
 
   const handleAdditionalStudentChange = (index: number, field: keyof StudentInfo, value: string) => {
+    let processedValue = value;
+    if (field === "firstName" || field === "lastName" || field === "adviser") {
+      processedValue = autoCapitalize(value);
+    } else if (field === "middleInitial") {
+      processedValue = value.replace(/\s+/g, "").toUpperCase();
+    }
+
     setFormData((p) => ({
       ...p,
       additionalStudents: p.additionalStudents.map((student, studentIndex) =>
-        studentIndex === index ? { ...student, [field]: value } : student
+        studentIndex === index ? { ...student, [field]: processedValue } : student
       ),
     }));
   };
@@ -489,7 +446,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       ...p,
       additionalStudents: p.additionalStudents.map((student, studentIndex) => {
         if (studentIndex !== index) return student;
-        if (field === "firstName" || field === "lastName" || field === "adviser") {
+        if (field === "firstName" || field === "lastName" || field === "adviser" || field === "role") {
           return { ...student, [field]: capitalizeWords(student[field]) };
         }
         if (field === "middleInitial") return { ...student, middleInitial: normalizeMiddleInitial(student.middleInitial) };
@@ -539,18 +496,15 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         normalized.level,
         normalized.section,
         normalized.adviser,
+        ...(normalized.additionalStudents.length > 0 ? [normalized.role] : []),
       ];
 
       if (requiredFields.some((value) => !value.trim()) || normalized.additionalStudents.some((student) => !isStudentComplete(student))) {
         showToast("Please fill out all required fields before continuing.");
         return;
       }
-      if (normalized.hasReportingStudent && !isReportingStudentComplete(normalized.reportingStudent)) {
-        showToast("Please complete the reporting student information.");
-        return;
-      }
-      if (normalized.date > getTodayDateString()) {
-        showToast("Date of incident cannot be later than today.");
+      if (normalized.date > getTodayDateTimeString()) {
+        showToast("Date & Time of incident cannot be later than current time.");
         return;
       }
     }
@@ -600,19 +554,15 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       !normalized.level.trim() ||
       !normalized.section.trim() ||
       !normalized.adviser.trim() ||
+      (normalized.additionalStudents.length > 0 && !normalized.role.trim()) ||
       normalized.additionalStudents.some((student) => !isStudentComplete(student))
     ) {
       showToast("Please fill out all required fields before filing.");
       setCurrentStep(2);
       return;
     }
-    if (normalized.hasReportingStudent && !isReportingStudentComplete(normalized.reportingStudent)) {
-      showToast("Please complete the reporting student information.");
-      setCurrentStep(2);
-      return;
-    }
-    if (normalized.date > getTodayDateString()) {
-      showToast("Date of incident cannot be later than today.");
+    if (normalized.date > getTodayDateTimeString()) {
+      showToast("Date & Time of incident cannot be later than current time.");
       setCurrentStep(2);
       return;
     }
@@ -632,6 +582,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           section: normalized.section,
           adviser: normalized.adviser,
           sanction: normalized.sanction,
+          role: normalized.additionalStudents.length > 0 ? normalized.role : "",
         },
         ...normalized.additionalStudents,
       ];
@@ -642,6 +593,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       })));
 
       if (students.length > 1) {
+        const groupId = crypto.randomUUID();
         for (const student of students) {
           await invoke<number>("add_case", {
             students: JSON.stringify([student]),
@@ -653,7 +605,8 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
             progress: normalized.progress,
             proofs,
             title: normalized.title.trim(),
-            reportingStudent: normalized.hasReportingStudent ? JSON.stringify(normalized.reportingStudent) : "",
+            reportingStudent: "",
+            groupId,
           });
         }
       } else {
@@ -667,7 +620,8 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           progress: normalized.progress,
           proofs,
           title: normalized.title.trim(),
-          reportingStudent: normalized.hasReportingStudent ? JSON.stringify(normalized.reportingStudent) : "",
+          reportingStudent: "",
+          groupId: null,
         });
       }
 
@@ -760,6 +714,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           <datalist id="section-options">
             {SECTION_OPTIONS.map((option) => <option key={option} value={option} />)}
           </datalist>
+
 
           {/* STEP 1 — Case Type Picker */}
           {currentStep === 1 && (
@@ -864,19 +819,28 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Incident details</p>
                 <div className="flex flex-col gap-4">
                   <div>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
-                      Date of incident
-                      <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
-                    </label>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider">
+                        Date & Time of incident
+                        <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, date: getTodayDateTimeString() })}
+                        className="text-[10px] font-bold text-primary hover:text-primary-hover uppercase tracking-wider bg-primary/5 hover:bg-primary/10 px-2 py-0.5 rounded transition-colors"
+                      >
+                        Set to Today/Now
+                      </button>
+                    </div>
                     <input
-                      type="date"
+                      type="datetime-local"
                       value={formData.date}
-                      max={getTodayDateString()}
+                      max={getTodayDateTimeString()}
                       onChange={(e) => {
                         const nextDate = e.target.value;
-                        if (nextDate > getTodayDateString()) {
-                          showToast("Date of incident cannot be later than today.");
-                          setFormData({ ...formData, date: getTodayDateString() });
+                        if (nextDate > getTodayDateTimeString()) {
+                          showToast("Date & Time of incident cannot be later than current time.");
+                          setFormData({ ...formData, date: getTodayDateTimeString() });
                           return;
                         }
                         setFormData({ ...formData, date: nextDate });
@@ -912,144 +876,13 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 </div>
               </div>
 
-              {/* Report source block */}
-              <div className="bg-surface rounded-xl border border-outline-variant p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Report source</p>
-                    <p className="mt-1 text-sm font-bold text-on-surface">Was this case reported by a student?</p>
-                    <p className="mt-1 text-xs text-secondary">
-                      The reporting student will not appear under Student(s) Involved in the Case Catalog.
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    {[
-                      { label: "No", value: false },
-                      { label: "Yes", value: true },
-                    ].map((option) => (
-                      <button
-                        key={option.label}
-                        type="button"
-                        onClick={() => setHasReportingStudent(option.value)}
-                        className={`min-w-16 rounded-lg border px-3 py-2 text-xs font-bold transition-colors ${
-                          formData.hasReportingStudent === option.value
-                            ? "border-primary bg-primary text-on-primary"
-                            : "border-outline-variant text-secondary hover:bg-surface-container"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
-                <div className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${
-                  formData.hasReportingStudent
-                    ? "mt-5 grid-rows-[1fr] opacity-100"
-                    : "mt-0 grid-rows-[0fr] opacity-0 pointer-events-none"
-                }`}>
-                  <div className="min-h-0 overflow-hidden">
-                  <div className="border-t border-outline-variant pt-4">
-                    <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Reporting student information</p>
-                    <div className="flex flex-col gap-4">
-                      <div className="grid grid-cols-3 gap-3">
-                        {[
-                          { label: "Last name", key: "lastName", placeholder: "e.g. Dela Cruz", required: true },
-                          { label: "First name", key: "firstName", placeholder: "e.g. Juan", required: true },
-                          { label: "Middle initial", key: "middleInitial", placeholder: "e.g. M", required: false },
-                        ].map((field) => (
-                          <div key={field.key}>
-                            <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
-                              {field.label}
-                              {field.required && <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>}
-                            </label>
-                            <input
-                              type="text"
-                              placeholder={field.placeholder}
-                              maxLength={field.key === "middleInitial" ? 3 : undefined}
-                              value={formData.reportingStudent[field.key as keyof ReportingStudentInfo]}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                reportingStudent: { ...formData.reportingStudent, [field.key]: e.target.value },
-                              })}
-                              onBlur={() => setFormData((previous) => ({
-                                ...previous,
-                                reportingStudent: normalizeReportingStudentField(
-                                  previous.reportingStudent,
-                                  field.key as keyof ReportingStudentInfo,
-                                ),
-                              }))}
-                              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <div>
-                        <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
-                          Grade level
-                          <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Grade 10"
-                          list="grade-level-options"
-                          value={formData.reportingStudent.level}
-                          onChange={(e) => setFormData({ ...formData, reportingStudent: { ...formData.reportingStudent, level: e.target.value } })}
-                          onBlur={() => setFormData((previous) => ({
-                            ...previous,
-                            reportingStudent: { ...previous.reportingStudent, level: normalizeGradeLevel(previous.reportingStudent.level) },
-                          }))}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
-                            Section
-                            <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. STEM"
-                            list="section-options"
-                            value={formData.reportingStudent.section}
-                            onChange={(e) => setFormData({ ...formData, reportingStudent: { ...formData.reportingStudent, section: e.target.value } })}
-                            onBlur={() => setFormData((previous) => ({
-                              ...previous,
-                              reportingStudent: { ...previous.reportingStudent, section: normalizeSection(previous.reportingStudent.section) },
-                            }))}
-                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
-                            Adviser
-                            <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Mr. Santos"
-                            value={formData.reportingStudent.adviser}
-                            onChange={(e) => setFormData({ ...formData, reportingStudent: { ...formData.reportingStudent, adviser: e.target.value } })}
-                            onBlur={() => setFormData((previous) => ({
-                              ...previous,
-                              reportingStudent: { ...previous.reportingStudent, adviser: capitalizeWords(previous.reportingStudent.adviser) },
-                            }))}
-                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  </div>
-                </div>
-              </div>
 
               {/* Student block */}
               <div className="bg-surface rounded-xl border border-outline-variant p-5">
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Student(s) involved</p>
                 <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className={`grid ${formData.additionalStudents.length > 0 ? "grid-cols-4" : "grid-cols-3"} gap-3`}>
                     <div>
                       <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
                         Last name
@@ -1058,7 +891,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       <input
                         type="text" placeholder="e.g. Dela Cruz"
                         value={formData.lastName}
-                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, lastName: autoCapitalize(e.target.value) })}
                         onBlur={() => setFormData((p) => ({ ...p, lastName: capitalizeWords(p.lastName) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
@@ -1071,7 +904,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       <input
                         type="text" placeholder="e.g. Juan"
                         value={formData.firstName}
-                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, firstName: autoCapitalize(e.target.value) })}
                         onBlur={() => setFormData((p) => ({ ...p, firstName: capitalizeWords(p.firstName) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
@@ -1082,11 +915,29 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         type="text" placeholder="e.g. M"
                         maxLength={3}
                         value={formData.middleInitial}
-                        onChange={(e) => setFormData({ ...formData, middleInitial: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, middleInitial: e.target.value.replace(/\s+/g, "").toUpperCase() })}
                         onBlur={() => setFormData((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
+                    {formData.additionalStudents.length > 0 && (
+                      <div>
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                          Role
+                          <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                        </label>
+                        <select
+                          value={formData.role}
+                          onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        >
+                          <option value="" disabled>Select a role</option>
+                          {ROLE_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
@@ -1125,7 +976,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       <input
                         type="text" placeholder="e.g. Mr. Santos"
                         value={formData.adviser}
-                        onChange={(e) => setFormData({ ...formData, adviser: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, adviser: autoCapitalize(e.target.value) })}
                         onBlur={() => setFormData((p) => ({ ...p, adviser: capitalizeWords(p.adviser) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
@@ -1171,7 +1022,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     </button>
                   </div>
                   <div className="flex flex-col gap-4">
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-4 gap-3">
                       <div>
                         <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
                           Last name
@@ -1180,7 +1031,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         <input
                           type="text" placeholder="e.g. Dela Cruz"
                           value={student.lastName}
-                          onChange={(e) => handleAdditionalStudentChange(index, "lastName", e.target.value)}
+                          onChange={(e) => handleAdditionalStudentChange(index, "lastName", autoCapitalize(e.target.value))}
                           onBlur={() => handleAdditionalStudentBlur(index, "lastName")}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
@@ -1193,7 +1044,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         <input
                           type="text" placeholder="e.g. Juan"
                           value={student.firstName}
-                          onChange={(e) => handleAdditionalStudentChange(index, "firstName", e.target.value)}
+                          onChange={(e) => handleAdditionalStudentChange(index, "firstName", autoCapitalize(e.target.value))}
                           onBlur={() => handleAdditionalStudentBlur(index, "firstName")}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
@@ -1204,10 +1055,26 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           type="text" placeholder="e.g. M"
                           maxLength={3}
                           value={student.middleInitial}
-                          onChange={(e) => handleAdditionalStudentChange(index, "middleInitial", e.target.value)}
+                          onChange={(e) => handleAdditionalStudentChange(index, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
                           onBlur={() => handleAdditionalStudentBlur(index, "middleInitial")}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
+                      </div>
+                      <div>
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                          Role
+                          <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                        </label>
+                        <select
+                          value={student.role}
+                          onChange={(e) => handleAdditionalStudentChange(index, "role", e.target.value)}
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        >
+                          <option value="" disabled>Select a role</option>
+                          {ROLE_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                     <div>
@@ -1247,7 +1114,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         <input
                           type="text" placeholder="e.g. Mr. Santos"
                           value={student.adviser}
-                          onChange={(e) => handleAdditionalStudentChange(index, "adviser", e.target.value)}
+                          onChange={(e) => handleAdditionalStudentChange(index, "adviser", autoCapitalize(e.target.value))}
                           onBlur={() => handleAdditionalStudentBlur(index, "adviser")}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
@@ -1302,7 +1169,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       placeholder="e.g. Class Incident"
                       value={formData.title}
                       maxLength={CASE_TITLE_LIMIT}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value.slice(0, CASE_TITLE_LIMIT) })}
+                      onChange={(e) => setFormData({ ...formData, title: autoCapitalize(e.target.value.slice(0, CASE_TITLE_LIMIT)) })}
                       onBlur={() => setFormData((p) => ({ ...p, title: capitalizeWords(p.title).slice(0, CASE_TITLE_LIMIT) }))}
                       className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                     />
@@ -1431,7 +1298,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                   {isEditingReview ? (
                     <input
                       type="text" value={formData.case}
-                      onChange={(e) => setFormData({ ...formData, case: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, case: autoCapitalize(e.target.value) })}
                       onBlur={() => setFormData((p) => {
                         const normalizedCase = normalizeCaseType(p.case);
                         const matchedCategory = getCategoryForCase(normalizedCase);
@@ -1462,11 +1329,20 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     <div key={key}>
                       <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
                       {isEditingReview && key === "date" ? (
-                        <input type="date" value={formData.date}
-                          max={getTodayDateString()}
-                          onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                          className="w-full bg-surface-container border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                        />
+                        <div className="flex flex-col gap-1.5 w-full">
+                          <input type="datetime-local" value={formData.date}
+                            max={getTodayDateTimeString()}
+                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                            className="w-full bg-surface-container border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, date: getTodayDateTimeString() })}
+                            className="text-[9px] font-bold text-primary hover:text-primary-hover uppercase tracking-wider bg-primary/5 hover:bg-primary/10 px-2 py-0.5 rounded transition-colors self-start"
+                          >
+                            Set to Today/Now
+                          </button>
+                        </div>
                       ) : isEditingReview && key === "progress" ? (
                         <select value={formData.progress} onChange={(e) => setFormData({ ...formData, progress: e.target.value })}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none">
@@ -1475,7 +1351,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       ) : (
                         <p className="text-sm text-on-surface font-medium">
                           {key === "date" 
-                            ? new Date(formData.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+                            ? new Date(formData.date).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
                             : (formData as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}
                         </p>
                       )}
@@ -1484,86 +1360,6 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 </div>
               </div>
 
-              {/* Report source */}
-              <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-outline-variant">
-                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Report source</p>
-                </div>
-                <div className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">Reported by a student</p>
-                      <p className="text-sm font-medium text-on-surface">{formData.hasReportingStudent ? "Yes" : "No"}</p>
-                    </div>
-                    {isEditingReview && (
-                      <div className="flex gap-2">
-                        {[
-                          { label: "No", value: false },
-                          { label: "Yes", value: true },
-                        ].map((option) => (
-                          <button
-                            key={option.label}
-                            type="button"
-                            onClick={() => setHasReportingStudent(option.value)}
-                            className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${
-                              formData.hasReportingStudent === option.value
-                                ? "border-primary bg-primary text-on-primary"
-                                : "border-outline-variant text-secondary"
-                            }`}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${
-                    formData.hasReportingStudent
-                      ? "mt-3 grid-rows-[1fr] opacity-100"
-                      : "mt-0 grid-rows-[0fr] opacity-0 pointer-events-none"
-                  }`}>
-                    <div className="min-h-0 overflow-hidden">
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-outline-variant pt-3">
-                      {[
-                        { label: "Last name", key: "lastName" },
-                        { label: "First name", key: "firstName" },
-                        { label: "Middle initial", key: "middleInitial" },
-                        { label: "Grade level", key: "level" },
-                        { label: "Section", key: "section" },
-                        { label: "Adviser", key: "adviser" },
-                      ].map(({ label, key }) => (
-                        <div key={key}>
-                          <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
-                          {isEditingReview ? (
-                            <input
-                              type="text"
-                              value={formData.reportingStudent[key as keyof ReportingStudentInfo]}
-                              list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                reportingStudent: { ...formData.reportingStudent, [key]: e.target.value },
-                              })}
-                              onBlur={() => setFormData((previous) => ({
-                                ...previous,
-                                reportingStudent: normalizeReportingStudentField(
-                                  previous.reportingStudent,
-                                  key as keyof ReportingStudentInfo,
-                                ),
-                              }))}
-                              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                            />
-                          ) : (
-                            <p className="text-sm text-on-surface font-medium">
-                              {formData.reportingStudent[key as keyof ReportingStudentInfo] || <span className="text-secondary italic font-normal">Not set</span>}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
               {/* Student info */}
               <div className="bg-surface rounded-xl border border-outline-variant overflow-hidden">
@@ -1575,6 +1371,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     { label: "Last name", key: "lastName" },
                     { label: "First name", key: "firstName" },
                     { label: "Middle initial", key: "middleInitial" },
+                    ...(formData.additionalStudents.length > 0 ? [{ label: "Role", key: "role" }] : []),
                     { label: "Grade level", key: "level" },
                     { label: "Section", key: "section" },
                     { label: "Adviser", key: "adviser" },
@@ -1582,22 +1379,44 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     <div key={key}>
                       <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
                       {isEditingReview ? (
-                        <input type="text" value={(formData as any)[key]}
-                          list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
-                          onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                          onBlur={() => {
-                            if (key === "firstName" || key === "lastName" || key === "adviser") {
-                              setFormData((p) => ({ ...p, [key]: capitalizeWords((p as any)[key]) }));
-                            } else if (key === "middleInitial") {
-                              setFormData((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }));
-                            } else if (key === "level") {
-                              setFormData((p) => ({ ...p, level: normalizeGradeLevel(p.level) }));
-                            } else if (key === "section") {
-                              setFormData((p) => ({ ...p, section: normalizeSection(p.section) }));
-                            }
-                          }}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                        />
+                        key === "role" ? (
+                          <select
+                            value={(formData as any)[key]}
+                            onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          >
+                            <option value="" disabled>Select a role</option>
+                            {ROLE_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input type="text" value={(formData as any)[key]}
+                            list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              let processed = val;
+                              if (key === "firstName" || key === "lastName" || key === "adviser") {
+                                processed = autoCapitalize(val);
+                              } else if (key === "middleInitial") {
+                                processed = val.replace(/\s+/g, "").toUpperCase();
+                              }
+                              setFormData({ ...formData, [key]: processed });
+                            }}
+                            onBlur={() => {
+                              if (key === "firstName" || key === "lastName" || key === "adviser") {
+                                setFormData((p) => ({ ...p, [key]: capitalizeWords((p as any)[key]) }));
+                              } else if (key === "middleInitial") {
+                                setFormData((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }));
+                              } else if (key === "level") {
+                                setFormData((p) => ({ ...p, level: normalizeGradeLevel(p.level) }));
+                              } else if (key === "section") {
+                                setFormData((p) => ({ ...p, section: normalizeSection(p.section) }));
+                              }
+                            }}
+                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          />
+                        )
                       ) : (
                         <p className="text-sm text-on-surface font-medium">{(formData as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}</p>
                       )}
@@ -1646,6 +1465,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       { label: "Last name", key: "lastName" },
                       { label: "First name", key: "firstName" },
                       { label: "Middle initial", key: "middleInitial" },
+                      { label: "Role", key: "role" },
                       { label: "Grade level", key: "level" },
                       { label: "Section", key: "section" },
                       { label: "Adviser", key: "adviser" },
@@ -1653,16 +1473,29 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       <div key={key}>
                         <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
                         {isEditingReview ? (
-                          <input
-                            type="text"
-                            value={student[key as keyof StudentInfo]}
-                            list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
-                            onChange={(e) => handleAdditionalStudentChange(index, key as keyof StudentInfo, e.target.value)}
-                            onBlur={() => handleAdditionalStudentBlur(index, key as keyof StudentInfo)}
-                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                          />
+                          key === "role" ? (
+                            <select
+                              value={(student as any)[key]}
+                              onChange={(e) => handleAdditionalStudentChange(index, key as keyof StudentInfo, e.target.value)}
+                              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                            >
+                              <option value="" disabled>Select a role</option>
+                              {ROLE_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={(student as any)[key]}
+                              list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
+                              onChange={(e) => handleAdditionalStudentChange(index, key as keyof StudentInfo, e.target.value)}
+                              onBlur={() => handleAdditionalStudentBlur(index, key as keyof StudentInfo)}
+                              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                            />
+                          )
                         ) : (
-                          <p className="text-sm text-on-surface font-medium">{student[key as keyof StudentInfo] || <span className="text-secondary italic font-normal">Not set</span>}</p>
+                          <p className="text-sm text-on-surface font-medium">{(student as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}</p>
                         )}
                       </div>
                     ))}

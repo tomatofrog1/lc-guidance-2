@@ -15,6 +15,7 @@ interface StudentInfo {
   level: string;
   section: string;
   adviser: string;
+  role?: string;
 }
 
 interface CaseRecord {
@@ -34,6 +35,8 @@ interface CaseRecord {
   proofs: string;
   students: string;
   title: string;
+  group_id?: string | null;
+  reporting_student?: string;
 }
 
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
@@ -191,6 +194,28 @@ const getBadgeClass = (progress: string) => {
   return "badge-pending";
 };
 
+const getRoleBadgeStyles = (role: string) => {
+  const normalized = role?.toLowerCase() || "";
+  if (normalized === "complainant") {
+    return "text-green-600 dark:text-green-400";
+  }
+  if (normalized === "reporter") {
+    return "text-blue-600 dark:text-blue-400";
+  }
+  if (normalized === "accused") {
+    return "text-red-600 dark:text-red-400";
+  }
+  if (normalized === "respondent") {
+    return "text-purple-600 dark:text-purple-400";
+  }
+  return "text-gray-500 dark:text-gray-400";
+};
+
+export interface CaseGroup {
+  groupId: string | null;
+  cases: CaseRecord[];
+}
+
 export default function CaseCatalog() {
   const navigate = useNavigate();
   const [cases, setCases] = useState<CaseRecord[]>([]);
@@ -295,7 +320,7 @@ export default function CaseCatalog() {
     return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
   }, [cases]);
 
-  const filteredAndSortedCases = useMemo(() => {
+  const filteredAndSortedGroups = useMemo(() => {
     let result = cases;
 
     // Search query filter (search Case ID or Name or case type)
@@ -307,10 +332,10 @@ export default function CaseCatalog() {
         const matchesStudent = students.some(s => {
           const nameStr = `${s.firstName} ${s.middleInitial} ${s.lastName}`.toLowerCase();
           return s.firstName.toLowerCase().includes(q) ||
-                 s.lastName.toLowerCase().includes(q) ||
-                 s.middleInitial.toLowerCase().includes(q) ||
-                 nameStr.includes(q) ||
-                 (s.adviser && s.adviser.toLowerCase().includes(q));
+            s.lastName.toLowerCase().includes(q) ||
+            s.middleInitial.toLowerCase().includes(q) ||
+            nameStr.includes(q) ||
+            (s.adviser && s.adviser.toLowerCase().includes(q));
         });
 
         return (
@@ -365,19 +390,72 @@ export default function CaseCatalog() {
     result = [...result].sort((a, b) => {
       const dateA = new Date(sortBy === "date_filed" ? (a.date_filed || a.date) : a.date).getTime();
       const dateB = new Date(sortBy === "date_filed" ? (b.date_filed || b.date) : b.date).getTime();
-      
-      if (sortOrder === "asc") return dateA - dateB;
-      return dateB - dateA;
+
+      if (dateA !== dateB) {
+        if (sortOrder === "asc") return dateA - dateB;
+        return dateB - dateA;
+      }
+      return b.id - a.id;
     });
-    
-    return result;
+
+    const groupsMap = new Map<string, CaseRecord[]>();
+    const unlinkedGroups: CaseGroup[] = [];
+
+    result.forEach(c => {
+      if (c.group_id) {
+        if (!groupsMap.has(c.group_id)) {
+          groupsMap.set(c.group_id, []);
+        }
+        groupsMap.get(c.group_id)!.push(c);
+      } else {
+        unlinkedGroups.push({ groupId: null, cases: [c] });
+      }
+    });
+
+    const linkedGroups: CaseGroup[] = Array.from(groupsMap.entries()).map(([groupId, items]) => ({
+      groupId,
+      cases: items.sort((a, b) => {
+        const roleOrder = (role: string) => {
+          const r = role.toLowerCase();
+          if (r === "complainant" || r === "reporter") return 1;
+          if (r === "respondent") return 2;
+          if (r === "accused") return 3;
+          return 4;
+        };
+        const roleA = parseStudents(a.students)[0]?.role || "";
+        const roleB = parseStudents(b.students)[0]?.role || "";
+        if (roleOrder(roleA) !== roleOrder(roleB)) {
+          return roleOrder(roleA) - roleOrder(roleB);
+        }
+        return b.id - a.id;
+      })
+    }));
+
+    const allGroups = [...linkedGroups, ...unlinkedGroups].sort((a, b) => {
+      const repA = a.cases[0];
+      const repB = b.cases[0];
+      const dateA = new Date(sortBy === "date_filed" ? (repA.date_filed || repA.date) : repA.date).getTime();
+      const dateB = new Date(sortBy === "date_filed" ? (repB.date_filed || repB.date) : repB.date).getTime();
+
+      if (dateA !== dateB) {
+        if (sortOrder === "asc") return dateA - dateB;
+        return dateB - dateA;
+      }
+      return repB.id - repA.id;
+    });
+
+    return allGroups;
   }, [cases, searchQuery, sortBy, sortOrder, statusFilter, monthFilter, startDate, endDate]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredAndSortedCases.length / CASES_PER_PAGE));
-  const paginatedCases = useMemo(() => {
+  const filteredAndSortedCases = useMemo(() => {
+    return filteredAndSortedGroups.flatMap((g) => g.cases);
+  }, [filteredAndSortedGroups]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedGroups.length / CASES_PER_PAGE));
+  const paginatedGroups = useMemo(() => {
     const startIndex = (currentPage - 1) * CASES_PER_PAGE;
-    return filteredAndSortedCases.slice(startIndex, startIndex + CASES_PER_PAGE);
-  }, [filteredAndSortedCases, currentPage]);
+    return filteredAndSortedGroups.slice(startIndex, startIndex + CASES_PER_PAGE);
+  }, [filteredAndSortedGroups, currentPage]);
   const visiblePageItems = useMemo(() => {
     if (totalPages <= 7) {
       return Array.from({ length: totalPages }, (_, index) => String(index + 1));
@@ -457,8 +535,8 @@ export default function CaseCatalog() {
     setMonthFilter(value);
   };
 
-  const isFilterModified = 
-    searchQuery !== "" || 
+  const isFilterModified =
+    searchQuery !== "" ||
     statusFilter !== "All Statuses" ||
     monthFilter !== "" ||
     startDate !== "" ||
@@ -641,12 +719,12 @@ export default function CaseCatalog() {
               proofsText = nonImages.map((p: any) => p.name).join("\n");
             }
           }
-        } catch(e) {}
+        } catch (e) { }
 
         let firstNames = c.first_name;
         let lastNames = c.last_name;
         let middleInitials = c.middle_initial;
-        
+
         try {
           if (c.students) {
             const studentsArr = JSON.parse(c.students);
@@ -656,7 +734,7 @@ export default function CaseCatalog() {
               middleInitials = studentsArr.map((s: any) => s.middleInitial).join("\n");
             }
           }
-        } catch(e) {}
+        } catch (e) { }
 
         const row = worksheet.addRow([
           c.id,
@@ -679,7 +757,7 @@ export default function CaseCatalog() {
 
         if (hasImages && Array.isArray(proofsArr)) {
           row.height = 75; // Set row height in points (e.g. 75 points ~ 100px)
-          
+
           let imgIndex = 0;
           proofsArr.forEach((p: any) => {
             const match = p.data && p.data.match(/^data:image\/(png|jpeg|jpg|gif);base64,(.+)$/i);
@@ -687,13 +765,13 @@ export default function CaseCatalog() {
               let ext = match[1].toLowerCase();
               if (ext === 'jpg') ext = 'jpeg';
               const base64 = match[2];
-              
+
               try {
                 const imageId = workbook.addImage({
                   base64: base64,
                   extension: ext as 'png' | 'jpeg' | 'gif',
                 });
-                
+
                 // Position side-by-side: 65x65px thumbnail
                 // Space them out by 75px (65px img + 10px margin)
                 const xOffsetPx = 10 + (imgIndex * 75);
@@ -791,16 +869,16 @@ export default function CaseCatalog() {
         {/* Search Input */}
         <div className="relative w-full mb-4">
           <span className="material-symbols-outlined text-secondary absolute left-3 top-1/2 -translate-y-1/2" style={{ fontSize: '18px' }}>search</span>
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Search by Case ID, Name, or Case Type"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-8 h-10 bg-surface border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-on-surface placeholder:text-on-surface-variant/70"
           />
           {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery("")} 
+            <button
+              onClick={() => setSearchQuery("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-on-surface flex items-center justify-center transition-colors duration-500"
             >
               <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: '16px' }}>close</span>
@@ -813,11 +891,10 @@ export default function CaseCatalog() {
             <button
               type="button"
               onClick={() => setIsStatusDropdownOpen((open) => !open)}
-              className={`group inline-flex h-[38px] w-[205px] items-center gap-2 rounded-lg border bg-surface px-3 text-left text-[13px] transition-all duration-300 ease-out ${
-                isStatusDropdownOpen
+              className={`group inline-flex h-[38px] w-[205px] items-center gap-2 rounded-lg border bg-surface px-3 text-left text-[13px] transition-all duration-300 ease-out ${isStatusDropdownOpen
                   ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
                   : "border-outline-variant hover:border-primary/60 hover:bg-surface-container"
-              }`}
+                }`}
             >
               <span className="material-symbols-outlined text-secondary transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 16 }}>filter_list</span>
               <span className="text-xs font-bold uppercase tracking-wider text-secondary">Status</span>
@@ -825,9 +902,8 @@ export default function CaseCatalog() {
                 {statusFilter === "All Statuses" ? "All" : statusFilter}
               </span>
               <span
-                className={`material-symbols-outlined text-secondary transition-transform duration-300 ${
-                  isStatusDropdownOpen ? "rotate-180" : "rotate-0"
-                }`}
+                className={`material-symbols-outlined text-secondary transition-transform duration-300 ${isStatusDropdownOpen ? "rotate-180" : "rotate-0"
+                  }`}
                 style={{ fontSize: 18 }}
               >
                 expand_more
@@ -846,15 +922,17 @@ export default function CaseCatalog() {
                         setStatusFilter(status);
                         setIsStatusDropdownOpen(false);
                       }}
-                      className={`group/status flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${
-                        isSelected
+                      className={`group/status flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${isSelected
                           ? "bg-[#EEEDFE] text-[#3C3489]"
                           : "text-on-surface hover:bg-surface-container"
-                      }`}
+                        }`}
                     >
-                      <span className={`h-2 w-2 rounded-full transition-colors duration-300 ${
-                        isSelected ? "bg-[#7B6FE8]" : "bg-outline-variant group-hover/status:bg-primary"
-                      }`} />
+                      <span className={`h-2 w-2 rounded-full transition-colors duration-300 ${status === "Pending" ? "bg-[#f59e0b]" :
+                          status === "Resolved" ? "bg-[#22c55e]" :
+                            status === "Closed" ? "bg-[#9ca3af]" :
+                              status === "Reprimand" ? "bg-[#ef4444]" :
+                                "bg-[#7B6FE8]"
+                        }`} />
                       <span className="flex-1 font-medium">{status === "All Statuses" ? "All" : status}</span>
                       {isSelected && (
                         <span className="material-symbols-outlined text-[#7B6FE8]" style={{ fontSize: 16 }}>check</span>
@@ -961,125 +1039,172 @@ export default function CaseCatalog() {
 
       <div className="bg-surface border border-surface-variant rounded-lg overflow-hidden shadow-sm flex flex-col">
         <div className="overflow-x-auto overflow-y-scroll h-[calc(100vh-310px)] min-h-[250px] [scrollbar-gutter:stable]">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
-              <tr className="bg-surface-container border-b border-surface-variant font-section-header text-sm text-on-surface">
-                <th className="p-table-cell-padding font-semibold">ID</th>
-                <th 
-                  className="p-table-cell-padding font-semibold cursor-pointer select-none group"
+              <tr className="bg-surface-container font-section-header text-sm text-on-surface">
+                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">ID</th>
+                <th
+                  className="p-table-cell-padding font-semibold cursor-pointer select-none group border-b border-surface-variant"
                   onClick={() => handleSort("date_filed")}
                 >
                   <div className="flex items-center gap-1 text-[11px] tracking-wider uppercase text-secondary">
                     Filed
-                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${
-                      sortBy === "date_filed" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
-                    } ${sortBy === "date_filed" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
+                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${sortBy === "date_filed" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
+                      } ${sortBy === "date_filed" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
                       arrow_upward
                     </span>
                   </div>
                 </th>
-                <th className="p-table-cell-padding font-semibold">
+                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">
                   <div className="text-[11px] tracking-wider uppercase text-secondary">
                     Incident Date
                   </div>
                 </th>
-                <th className="p-table-cell-padding font-semibold">Student(s) Involved</th>
-                <th className="p-table-cell-padding font-semibold">Case Type</th>
-                <th className="p-table-cell-padding font-semibold text-center">Status</th>
-                <th className="p-table-cell-padding font-semibold">Adviser</th>
-                <th className="py-1 px-4 font-semibold text-right"></th>
+                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">Student(s) Involved</th>
+                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">Case Type</th>
+                <th className="p-table-cell-padding font-semibold text-center border-b border-surface-variant">Status</th>
+                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">Adviser</th>
+                <th className="py-1 px-4 font-semibold text-right border-b border-surface-variant"></th>
               </tr>
             </thead>
-            <tbody className="font-body-md text-sm text-on-surface">
-              {isLoading && (
+            {isLoading && (
+              <tbody className="font-body-md text-sm text-on-surface">
                 <tr>
                   <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
                     Loading cases...
                   </td>
                 </tr>
-              )}
-              {!isLoading && error && (
+              </tbody>
+            )}
+            {!isLoading && error && (
+              <tbody className="font-body-md text-sm text-on-surface">
                 <tr>
                   <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
                     Backend unavailable. Open with npm run tauri -- dev to load cases.
                   </td>
                 </tr>
-              )}
-              {!isLoading && !error && filteredAndSortedCases.length === 0 && (
+              </tbody>
+            )}
+            {!isLoading && !error && filteredAndSortedGroups.length === 0 && (
+              <tbody className="font-body-md text-sm text-on-surface">
                 <tr>
                   <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
                     {isFilterModified ? "No results found." : "No records found."}
                   </td>
                 </tr>
-              )}
-              {!isLoading && !error && paginatedCases.map((caseRecord) => (
-                <tr
-                  key={caseRecord.id}
-                  className="catalog-page-enter border-b border-surface-variant/50 hover:bg-surface-container transition-colors cursor-pointer group"
-                  onClick={() => navigate(`/case/${caseRecord.id}`)}
-                >
-                  <td className="p-table-cell-padding">
-                    <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
-                  </td>
-                  <td className="p-table-cell-padding">
-                    {(() => {
-                      const rel = formatRelativeFiled(caseRecord.date_filed);
-                      return (
-                        <div className="flex flex-col leading-tight py-0.5">
-                          <span className="font-semibold text-on-surface text-[13px]">{rel.primary}</span>
-                          {rel.secondary && (
-                            <span className="text-[11px] text-secondary mt-0.5">{rel.secondary}</span>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </td>
-                  <td className="p-table-cell-padding font-bold text-on-surface">{formatIncidentDate(caseRecord.date)}</td>
-                  <td className="p-table-cell-padding font-medium">
-                    {(() => {
-                      const students = parseStudents(caseRecord.students);
-                      if (students.length === 0) return "—";
-                      const firstStudent = students[0];
-                      const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
-                      return students.length > 1 ? <span title={`${students.length} students involved`}>{name} <span className="text-xs text-secondary">(+{students.length - 1} others)</span></span> : name;
-                    })()}
-                  </td>
-                  <td className="p-table-cell-padding">
-                    <div className="flex flex-col">
-                      <span className="text-xs text-on-surface-variant">{caseRecord.case}</span>
-                      {caseRecord.title ? (
-                        <span className="text-[10px] text-secondary mt-0.5 font-medium">{caseRecord.title}</span>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="p-table-cell-padding text-center">
-                    <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
-                  </td>
-                  <td className="p-table-cell-padding text-on-surface-variant">
-                    {(() => {
-                      const students = parseStudents(caseRecord.students);
-                      if (students.length === 0) return "—";
-                      const firstStudent = students[0];
-                      return students.length > 1 ? `${firstStudent.adviser} (+${students.length - 1} others)` : firstStudent.adviser;
-                    })()}
-                  </td>
-                  <td className="py-1 px-4 text-right">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsDeleteConfirmClosing(false);
-                        setDeleteConfirmText("");
-                        setDeleteConfirmId(caseRecord.id);
-                      }}
-                      className="text-secondary hover:text-error transition-all duration-500 p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
-                      title="Delete Record"
+              </tbody>
+            )}
+            {!isLoading && !error && paginatedGroups.map((group) => (
+              <tbody
+                key={group.groupId || group.cases[0].id}
+                className="font-body-md text-sm text-on-surface group/body"
+              >
+                {group.cases.map((caseRecord, index) => {
+                  const isFirstInGroup = index === 0;
+                  const groupLength = group.cases.length;
+                  const isGrouped = groupLength > 1;
+                  const borderClass = isGrouped
+                    ? (index === groupLength - 1 ? "border-b border-b-surface-variant" : "border-b border-b-surface-variant/40")
+                    : "border-b border-b-surface-variant/50";
+                  const groupBorderClass = isGrouped ? "border-b border-b-surface-variant" : "border-b border-b-surface-variant/50";
+
+                  return (
+                    <tr
+                      key={caseRecord.id}
+                      className="catalog-page-enter transition-colors cursor-pointer group/row"
+                      onClick={() => navigate(`/case/${caseRecord.id}`)}
                     >
-                      <span className="material-symbols-outlined text-[18px] transition-colors duration-500">delete</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+                      <td className={`p-table-cell-padding transition-colors duration-300 ${isGrouped ? "border-l-[3px] border-l-outline-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
+                        <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
+                      </td>
+                      {isFirstInGroup && (
+                        <td className={`p-table-cell-padding transition-colors duration-300 ${isGrouped ? "bg-surface-container-highest/20 group-hover/body:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${groupBorderClass}`} rowSpan={groupLength}>
+                          {(() => {
+                            const rel = formatRelativeFiled(caseRecord.date_filed);
+                            return (
+                              <div className="flex flex-col leading-tight py-0.5">
+                                <span className="font-semibold text-on-surface text-[13px]">{rel.primary}</span>
+                                {rel.secondary && (
+                                  <span className="text-[11px] text-secondary mt-0.5">{rel.secondary}</span>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                      )}
+                      {isFirstInGroup && (
+                        <td className={`p-table-cell-padding transition-colors duration-300 font-bold text-on-surface ${isGrouped ? "bg-surface-container-highest/20 group-hover/body:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${groupBorderClass}`} rowSpan={groupLength}>
+                          {formatIncidentDate(caseRecord.date)}
+                        </td>
+                      )}
+                      <td className={`p-table-cell-padding transition-colors duration-300 font-medium ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
+                        {(() => {
+                          const students = parseStudents(caseRecord.students);
+                          if (students.length === 0) return "—";
+                          const firstStudent = students[0];
+                          const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
+                          const role = firstStudent.role;
+                          return (
+                            <div className="flex flex-col gap-0.5 py-1">
+                              <span className="font-bold text-on-surface leading-tight text-[13px]">{name}</span>
+                              {role && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant' ? 'bg-green-500' : role.toLowerCase() === 'reporter' ? 'bg-blue-500' : role.toLowerCase() === 'accused' ? 'bg-red-500' : 'bg-purple-500'}`} />
+                                  <span className={`text-[11px] font-medium ${getRoleBadgeStyles(role)}`}>
+                                    {role}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      {isFirstInGroup && (
+                        <td className={`p-table-cell-padding transition-colors duration-300 ${isGrouped ? "bg-surface-container-highest/20 group-hover/body:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${groupBorderClass}`} rowSpan={groupLength}>
+                          <div className="flex flex-col">
+                            <span className="text-[13px] font-bold text-on-surface">{caseRecord.case}</span>
+                            {caseRecord.title && (
+                              <span className="text-[11px] text-secondary mt-0.5 leading-tight">{caseRecord.title}</span>
+                            )}
+                            {isGrouped && (
+                              <div className="mt-1.5 inline-flex items-center gap-1 bg-surface border border-outline-variant/60 rounded px-1.5 py-0.5 w-fit">
+                                <span className="material-symbols-outlined text-[12px] text-secondary">link</span>
+                                <span className="text-[10px] font-medium text-secondary">{groupLength} linked records</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      <td className={`p-table-cell-padding transition-colors duration-300 text-center ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
+                        <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
+                      </td>
+                      <td className={`p-table-cell-padding transition-colors duration-300 text-on-surface-variant ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
+                        {(() => {
+                          const students = parseStudents(caseRecord.students);
+                          if (students.length === 0) return "—";
+                          const firstStudent = students[0];
+                          return firstStudent.adviser;
+                        })()}
+                      </td>
+                      <td className={`py-1 px-4 transition-colors duration-300 text-right ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsDeleteConfirmClosing(false);
+                            setDeleteConfirmText("");
+                            setDeleteConfirmId(caseRecord.id);
+                          }}
+                          className="text-secondary hover:text-error transition-all duration-500 p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
+                          title="Delete Record"
+                        >
+                          <span className="material-symbols-outlined text-[18px] transition-colors duration-500">delete</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            ))}
           </table>
         </div>
 
@@ -1112,11 +1237,10 @@ export default function CaseCatalog() {
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
-                  className={`min-w-8 px-3 py-1 border rounded text-sm transition-colors duration-500 ${
-                    isActive
+                  className={`min-w-8 px-3 py-1 border rounded text-sm transition-colors duration-500 ${isActive
                       ? "border-primary-container bg-primary-container text-white"
                       : "border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low"
-                  }`}
+                    }`}
                 >
                   {page}
                 </button>
@@ -1135,16 +1259,14 @@ export default function CaseCatalog() {
 
       {deleteConfirmId !== null && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div 
-            className={`absolute inset-0 bg-black/45 ${
-              isDeleteConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
-            }`}
+          <div
+            className={`absolute inset-0 bg-black/45 ${isDeleteConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+              }`}
             style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
             onClick={closeDeleteConfirm}
           />
-          <div className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${
-            isDeleteConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
-          }`}>
+          <div className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${isDeleteConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}>
             <div className="flex items-center gap-3 text-error mb-3">
               <span className="material-symbols-outlined text-[28px]">warning</span>
               <h3 className="text-xl font-bold">Confirm Deletion</h3>
