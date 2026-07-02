@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import html2pdf from "html2pdf.js";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
@@ -75,6 +75,7 @@ export default function SummaryReports() {
     signature: true,
   });
   const [isExporting, setIsExporting] = useState(false);
+  const [paginatedPages, setPaginatedPages] = useState<{ rows: CaseRecord[], isFirstPage: boolean, hasClosing: boolean }[]>([]);
   
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -219,8 +220,7 @@ export default function SummaryReports() {
           clonedDocument.documentElement.classList.remove("dark");
         },
       },
-      jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' as const },
-      pagebreak:    { mode: ["css", "legacy"] as [string, string] }
+      jsPDF:        { unit: 'mm', format: [297, 210], orientation: 'landscape' as const }
     };
     
     try {
@@ -256,44 +256,85 @@ export default function SummaryReports() {
   };
 
 
-  const ROWS_PAGE_1 = 3;
-  const ROWS_PAGE_N = 5;
 
-  const pages: CaseRecord[][] = [];
-  let currentIndex = 0;
-  
-  if (activeCases.length === 0) {
-    pages.push([]);
-  } else {
-    const page1 = activeCases.slice(0, ROWS_PAGE_1);
-    pages.push(page1);
-    currentIndex += ROWS_PAGE_1;
-    
-    while (currentIndex < activeCases.length) {
-      pages.push(activeCases.slice(currentIndex, currentIndex + ROWS_PAGE_N));
-      currentIndex += ROWS_PAGE_N;
-    }
-  }
+  const renderFirstHeader = () => (
+    <>
+      <div className="grid grid-cols-[84px_1fr_84px] items-center gap-4 mb-4 font-sans">
+        <img src={lcOfficialLogo} alt="Laguna College Logo" className="w-[72px] h-[72px] object-contain justify-self-start" />
+        <div className="text-center text-black" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+          <h2 className="m-0 text-[15px] leading-[18px] font-black uppercase tracking-[0.02em] text-black">LAGUNA COLLEGE</h2>
+          <p className="m-0 mt-0.5 text-[11px] leading-[13px] font-bold text-black">San Pablo City</p>
+          <p className="m-0 mt-0.5 text-[18px] leading-[21px] font-black text-black">Guidance Office</p>
+        </div>
+        <img src={guidanceLogo} alt="Guidance Office Logo" className="w-[72px] h-[72px] object-contain justify-self-end" />
+      </div>
+      
+      <div className="h-0.5 w-full bg-primary mb-5"></div>
 
-  const lastPageCapacity = pages.length === 1 ? ROWS_PAGE_1 : ROWS_PAGE_N;
-  const lastPageRows = pages[pages.length - 1].length;
-  const needsExtraPage = activeCases.length > 0 && includes.signature && (lastPageCapacity - lastPageRows) < 2;
-  const totalPagesCount = pages.length + (needsExtraPage ? 1 : 0);
+      <div className="text-center mb-6">
+        <h1 className="text-base font-bold uppercase tracking-wider mb-0.5 font-sans">
+          {periodType === "monthly" ? "Monthly Report on Disciplinary Cases" : "Yearly Report on Disciplinary Cases"}
+        </h1>
+        <p className="text-xs text-gray-500 font-sans">Official Disciplinary Case Report</p>
+      </div>
 
-  const renderTableHeader = () => (
-    <thead>
-      <tr className="border-b border-gray-200 text-gray-600 font-bold uppercase text-[11px] tracking-wider font-sans">
-        <th className="py-2 pr-2 w-8">#</th>
-        <th className="py-2 pr-2">Incident Date</th>
-        <th className="py-2 pr-2">Student</th>
-        <th className="py-2 pr-2">Class</th>
-        <th className="py-2 pr-2">Adviser</th>
-        <th className="py-2 pr-2">Type</th>
-        <th className="py-2 pr-2 max-w-[140px]">Description</th>
-        <th className="py-2 pr-2 max-w-[120px]">Sanction</th>
-        <th className="py-2 text-right">Status</th>
-      </tr>
-    </thead>
+      <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 mb-6 text-xs w-3/4 mx-auto font-sans text-left">
+        {periodType === "monthly" ? (
+          <div className="flex">
+            <span className="w-32 text-gray-500">Reporting period</span>
+            <span className="font-medium">{selectedMonth}</span>
+          </div>
+        ) : (
+          <div className="flex">
+            <span className="w-32 text-gray-500">Academic year</span>
+            <span className="font-medium">{selectedYear.replace('A.Y. ', '')}</span>
+          </div>
+        )}
+        <div className="flex">
+          <span className="w-32 text-gray-500">Scope</span>
+          <span className="font-medium">{scope === 'all' ? 'All year levels' : selectedGrade}</span>
+        </div>
+        <div className="flex">
+          <span className="w-32 text-gray-500">Role filter</span>
+          <span className="font-medium">{selectedRole === 'all' ? 'All roles' : selectedRole}</span>
+        </div>
+        <div className="flex">
+          <span className="w-32 text-gray-500">Status filter</span>
+          <span className="font-medium">{selectedStatus === 'all' ? 'All statuses' : selectedStatus}</span>
+        </div>
+        <div className="flex">
+          <span className="w-32 text-gray-500">Date generated</span>
+          <span className="font-medium">
+            {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </span>
+        </div>
+      </div>
+
+      {includes.summary && (
+        <div className="mb-6 font-sans">
+          <h3 className="text-[10px] font-bold text-primary uppercase tracking-wider mb-2 border-b pb-1">Summary</h3>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Total Cases</span>
+              <span className="text-base leading-5 font-bold text-gray-900">{stats.total}</span>
+            </div>
+            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Pending Cases</span>
+              <span className="text-base leading-5 font-bold text-gray-900">{stats.pending}</span>
+            </div>
+            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Resolved Cases</span>
+              <span className="text-base leading-5 font-bold text-gray-900">{stats.resolved}</span>
+            </div>
+            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Reprimand Cases</span>
+              <span className="text-base leading-5 font-bold text-gray-900">{stats.reprimand}</span>
+            </div>
+          </div>
+        </div>
+      )}
+      <h3 className="text-[12px] font-bold text-primary uppercase tracking-wider mb-2 border-b pb-1 font-sans">Case List</h3>
+    </>
   );
 
   const renderSmallHeader = () => (
@@ -313,6 +354,22 @@ export default function SummaryReports() {
         </p>
       </div>
     </div>
+  );
+
+  const renderTableHeader = () => (
+    <thead>
+      <tr className="border-b border-gray-200 text-gray-600 font-bold uppercase text-[11px] tracking-wider font-sans">
+        <th className="py-2 pr-2 w-8">#</th>
+        <th className="py-2 pr-2">Incident Date</th>
+        <th className="py-2 pr-2">Student</th>
+        <th className="py-2 pr-2">Class</th>
+        <th className="py-2 pr-2">Adviser</th>
+        <th className="py-2 pr-2">Type</th>
+        <th className="py-2 pr-2 max-w-[140px]">Description</th>
+        <th className="py-2 pr-2 max-w-[120px]">Sanction</th>
+        <th className="py-2 text-right pr-2">Status</th>
+      </tr>
+    </thead>
   );
 
   const renderPageFooter = (currentPage: number, totalPages: number) => (
@@ -347,6 +404,180 @@ export default function SummaryReports() {
       )}
     </div>
   );
+
+  const renderTableRow = (c: CaseRecord, index: number, isHiddenRef?: boolean) => {
+    const students = parseStudents(c.students);
+    let studentName = "";
+    let studentGrade = "";
+    let studentAdviser = c.adviser || "—";
+    
+    if (students.length > 0) {
+      const s = students[0];
+      studentName = `${s.lastName}, ${s.firstName}${s.middleInitial ? ` ${s.middleInitial}.` : ""}`;
+      studentGrade = `${s.level.replace('Grade ', '')}-${s.section}`;
+      studentAdviser = s.adviser || c.adviser || "—";
+    } else {
+      studentName = `${c.last_name}, ${c.first_name}${c.middle_initial ? ` ${c.middle_initial}.` : ""}`;
+      studentGrade = `${c.level.replace('Grade ', '')}-${c.section}`;
+      studentAdviser = c.adviser || "—";
+    }
+    
+    return (
+      <tr 
+        key={isHiddenRef ? c.id : index}
+        {...(isHiddenRef ? { 'data-row': true, 'data-index': index } : {})} 
+        className="border-b border-gray-100 last:border-0 text-[12px] even:bg-[#FAFAFA]" 
+        style={{ pageBreakInside: 'avoid' }}
+      >
+        <td className="py-3 pr-2 pl-2 text-gray-500 font-sans font-bold">{index + 1}</td>
+        <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{formatDate(c.date)}</td>
+        <td className="py-3 pr-2 font-medium text-gray-900 font-sans">{studentName}</td>
+        <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{studentGrade}</td>
+        <td className="py-3 pr-2 text-gray-600 font-sans">{studentAdviser}</td>
+        <td className="py-3 pr-2 text-gray-600 font-sans">{c.case}</td>
+        <td className="py-3 pr-2 text-gray-600 font-sans max-w-[140px] break-words">{c.description || "—"}</td>
+        <td className="py-3 pr-2 text-gray-600 font-sans max-w-[120px] break-words">{c.sanction || "—"}</td>
+        <td style={{ padding: "12px 8px 12px 0", textAlign: "right", verticalAlign: "middle", fontFamily: "sans-serif" }}>
+          <span
+            style={{
+              ...getBadgeInlineStyle(c.progress),
+              display: "inline-block",
+              fontSize: "11px",
+              fontWeight: 700,
+              textTransform: "uppercase" as const,
+              letterSpacing: "0.05em",
+              whiteSpace: "nowrap",
+              lineHeight: "1",
+              verticalAlign: "middle",
+            }}
+          >
+            {c.progress}
+          </span>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderHiddenMeasurementPass = () => (
+    <div data-measurement-root="true" style={{ position: "absolute", visibility: "hidden", top: "-9999px", left: "0", pointerEvents: "none" }} aria-hidden="true">
+      <div data-page-frame className="bg-white shadow-md print:shadow-none w-[297mm] h-[210mm] px-12 py-8 text-gray-800 font-serif relative overflow-hidden box-border"></div>
+      
+      <div className="w-[297mm] px-12 py-8 box-border font-serif">
+        <div data-first-header className="flex flex-col">
+          {renderFirstHeader()}
+        </div>
+        
+        <div data-cont-header className="flex flex-col">
+          {renderSmallHeader()}
+        </div>
+        
+        <div data-footer className="relative">
+          <div className="flex justify-between items-end text-[10px] text-gray-400 font-sans border-t pt-4 bg-white">
+            <div className="flex flex-col">
+              <span className="font-bold">Generated by LCGO Guidance Information System</span>
+              <span>Confidential Student Record</span>
+            </div>
+            <div className="font-bold">Page X of Y</div>
+          </div>
+        </div>
+        
+        <div data-closing className="flex flex-col">
+          {renderClosingBlock()}
+        </div>
+        
+        <table className="w-full text-left border-collapse min-w-full">
+          {renderTableHeader()}
+          <tbody>
+            {activeCases.map((c, i) => renderTableRow(c, i, true))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  useLayoutEffect(() => {
+    const frameEl = document.querySelector('[data-measurement-root] [data-page-frame]');
+    if (!frameEl) return;
+    
+    const PAGE_HEIGHT_PX = frameEl.getBoundingClientRect().height;
+    
+    const firstHeaderH = document.querySelector('[data-measurement-root] [data-first-header]')?.getBoundingClientRect().height || 0;
+    const contHeaderH = document.querySelector('[data-measurement-root] [data-cont-header]')?.getBoundingClientRect().height || 0;
+    const tableHeaderH = document.querySelector('[data-measurement-root] thead')?.getBoundingClientRect().height || 0;
+    const footerH = document.querySelector('[data-measurement-root] [data-footer]')?.getBoundingClientRect().height || 0;
+    const closingH = document.querySelector('[data-measurement-root] [data-closing]')?.getBoundingClientRect().height || 0;
+
+    const rowEls = document.querySelectorAll('[data-measurement-root] [data-row]');
+    const rowHeights = Array.from(rowEls).map(el => el.getBoundingClientRect().height);
+    
+    const SAFETY_MARGIN = 12;
+    const topPadding = 32;
+    const bottomAbsoluteOffset = 32;
+    const footerBudget = bottomAbsoluteOffset + footerH;
+    
+    const contentBudget = PAGE_HEIGHT_PX - topPadding - footerBudget - SAFETY_MARGIN;
+
+    const heightByCaseId = new Map(activeCases.map((c, i) => [c.id, rowHeights[i]]));
+
+    const newPages: { rows: CaseRecord[], isFirstPage: boolean, hasClosing: boolean }[] = [];
+    
+    if (activeCases.length === 0) {
+      const hasClosing = (firstHeaderH + tableHeaderH + closingH) <= contentBudget;
+      newPages.push({ rows: [], isFirstPage: true, hasClosing });
+      if (!hasClosing) {
+         newPages.push({ rows: [], isFirstPage: false, hasClosing: true });
+      }
+      setPaginatedPages(newPages);
+      return;
+    }
+
+    let currentBudget = contentBudget - firstHeaderH - tableHeaderH;
+    let currentRowBucket: CaseRecord[] = [];
+    let isFirstPage = true;
+
+    for (let i = 0; i < activeCases.length; i++) {
+      const caseRecord = activeCases[i];
+      const rowHeight = rowHeights[i];
+      
+      if (currentBudget >= rowHeight || currentRowBucket.length === 0) {
+        currentRowBucket.push(caseRecord);
+        currentBudget -= rowHeight;
+      } else {
+        newPages.push({ rows: currentRowBucket, isFirstPage, hasClosing: false });
+        isFirstPage = false;
+        currentRowBucket = [caseRecord];
+        currentBudget = contentBudget - contHeaderH - tableHeaderH - rowHeight;
+      }
+    }
+
+    if (currentRowBucket.length > 0) {
+      if (currentBudget >= closingH) {
+        newPages.push({ rows: currentRowBucket, isFirstPage, hasClosing: true });
+      } else {
+        let rebalanced = false;
+        const maxTrim = Math.min(3, currentRowBucket.length);
+        for (let trim = 1; trim <= maxTrim; trim++) {
+          const movedRows = currentRowBucket.slice(-trim);
+          const keptRows = currentRowBucket.slice(0, currentRowBucket.length - trim);
+          if (keptRows.length === 0) break;
+          const movedHeight = movedRows.reduce((sum, r) => sum + (heightByCaseId.get(r.id) || 0), 0);
+          const freshPageBudget = contentBudget - contHeaderH - tableHeaderH;
+          if (freshPageBudget - movedHeight >= closingH) {
+            newPages.push({ rows: keptRows, isFirstPage, hasClosing: false });
+            newPages.push({ rows: movedRows, isFirstPage: false, hasClosing: true });
+            rebalanced = true;
+            break;
+          }
+        }
+        if (!rebalanced) {
+          newPages.push({ rows: currentRowBucket, isFirstPage, hasClosing: false });
+          newPages.push({ rows: [], isFirstPage: false, hasClosing: true });
+        }
+      }
+    }
+    
+    setPaginatedPages(newPages);
+  }, [activeCases, includes, periodType, selectedMonth, selectedYear, scope, selectedGrade, selectedRole]);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-7xl mx-auto pb-10 h-full">
@@ -555,176 +786,49 @@ export default function SummaryReports() {
           <div className="bg-gray-100 rounded-xl p-4 lg:p-8 flex justify-center w-full overflow-hidden print:bg-white print:p-0 print:rounded-none">
             
             {/* The A4 Paper */}
-            <div ref={reportRef} className="flex flex-col gap-8 print:gap-0 bg-transparent print:bg-white w-[297mm] origin-top">
-              {pages.map((pageRows, index) => {
-                const isFirstPage = index === 0;
-                const isLastPageChunk = index === pages.length - 1;
+            {renderHiddenMeasurementPass()}
+            <div ref={reportRef} className={`report-preview-paper flex flex-col ${isExporting ? 'gap-0' : 'gap-8'} bg-transparent print:bg-white w-[297mm] origin-top`}>
+              {paginatedPages.map((page, index) => {
                 let globalStartIndex = 0;
                 for (let p = 0; p < index; p++) {
-                  globalStartIndex += pages[p].length;
+                  globalStartIndex += paginatedPages[p].rows.length;
                 }
 
                 return (
-                  <div key={index} className="bg-white shadow-md print:shadow-none w-[297mm] h-[210mm] px-12 py-8 text-gray-800 font-serif relative" style={{ pageBreakAfter: 'always' }}>
+                  <div key={index} className={`bg-white ${isExporting ? 'shadow-none' : 'shadow-md'} print:shadow-none w-[297mm] h-[210mm] box-border px-12 py-8 text-gray-800 font-serif relative overflow-hidden`}>
                     
-                    {isFirstPage ? (
-                      <>
-                        <div className="grid grid-cols-[84px_1fr_84px] items-center gap-4 mb-4 font-sans">
-                          <img src={lcOfficialLogo} alt="Laguna College Logo" className="w-[72px] h-[72px] object-contain justify-self-start" />
-                          <div className="text-center text-black" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-                            <h2 className="m-0 text-[15px] leading-[18px] font-black uppercase tracking-[0.02em] text-black">LAGUNA COLLEGE</h2>
-                            <p className="m-0 mt-0.5 text-[11px] leading-[13px] font-bold text-black">San Pablo City</p>
-                            <p className="m-0 mt-0.5 text-[18px] leading-[21px] font-black text-black">Guidance Office</p>
-                          </div>
-                          <img src={guidanceLogo} alt="Guidance Office Logo" className="w-[72px] h-[72px] object-contain justify-self-end" />
-                        </div>
-                        
-                        <div className="h-0.5 w-full bg-primary mb-5"></div>
-
-                        <div className="text-center mb-6">
-                          <h1 className="text-base font-bold uppercase tracking-wider mb-0.5 font-sans">
-                            {periodType === "monthly" ? "Monthly Report on Disciplinary Cases" : "Yearly Report on Disciplinary Cases"}
-                          </h1>
-                          <p className="text-xs text-gray-500 font-sans">Official Disciplinary Case Report</p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 mb-6 text-xs w-3/4 mx-auto font-sans text-left">
-                          {periodType === "monthly" ? (
-                            <div className="flex">
-                              <span className="w-32 text-gray-500">Reporting period</span>
-                              <span className="font-medium">{selectedMonth}</span>
-                            </div>
-                          ) : (
-                            <div className="flex">
-                              <span className="w-32 text-gray-500">Academic year</span>
-                              <span className="font-medium">{selectedYear.replace('A.Y. ', '')}</span>
-                            </div>
-                          )}
-                          <div className="flex">
-                            <span className="w-32 text-gray-500">Scope</span>
-                            <span className="font-medium">{scope === 'all' ? 'All year levels' : selectedGrade}</span>
-                          </div>
-                          <div className="flex">
-                            <span className="w-32 text-gray-500">Role filter</span>
-                            <span className="font-medium">{selectedRole === 'all' ? 'All roles' : selectedRole}</span>
-                          </div>
-                          <div className="flex">
-                            <span className="w-32 text-gray-500">Status filter</span>
-                            <span className="font-medium">{selectedStatus === 'all' ? 'All statuses' : selectedStatus}</span>
-                          </div>
-                          <div className="flex">
-                            <span className="w-32 text-gray-500">Date generated</span>
-                            <span className="font-medium">
-                              {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                            </span>
-                          </div>
-                        </div>
-
-                        {includes.summary && (
-                          <div className="mb-6 font-sans">
-                            <h3 className="text-[10px] font-bold text-primary uppercase tracking-wider mb-2 border-b pb-1">Summary</h3>
-                            <div className="grid grid-cols-4 gap-4">
-                              <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
-                                <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Total Cases</span>
-                                <span className="text-base leading-5 font-bold text-gray-900">{stats.total}</span>
-                              </div>
-                              <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
-                                <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Pending Cases</span>
-                                <span className="text-base leading-5 font-bold text-gray-900">{stats.pending}</span>
-                              </div>
-                              <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
-                                <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Resolved Cases</span>
-                                <span className="text-base leading-5 font-bold text-gray-900">{stats.resolved}</span>
-                              </div>
-                              <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
-                                <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Reprimand Cases</span>
-                                <span className="text-base leading-5 font-bold text-gray-900">{stats.reprimand}</span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        <h3 className="text-[12px] font-bold text-primary uppercase tracking-wider mb-2 border-b pb-1 font-sans">Case List</h3>
-                      </>
+                    {page.rows.length === 0 && !page.isFirstPage ? (
+                      // Orphaned closing-only page: header + closing block, no table at all
+                      <div className="h-full flex flex-col justify-center">
+                        {renderClosingBlock()}
+                      </div>
                     ) : (
-                      renderSmallHeader()
+                      <>
+                        {page.isFirstPage ? renderFirstHeader() : renderSmallHeader()}
+                        <div className="w-full">
+                          <table className="w-full text-left border-collapse min-w-full">
+                            {renderTableHeader()}
+                            <tbody>
+                              {page.rows.length > 0 ? (
+                                page.rows.map((c, i) => renderTableRow(c, globalStartIndex + i))
+                              ) : (
+                                <tr>
+                                  <td colSpan={9} className="py-8 text-center text-gray-500 text-sm font-sans italic">
+                                    No cases found for this period.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                        {page.hasClosing && !(page.rows.length === 0 && !page.isFirstPage) && renderClosingBlock()}
+                      </>
                     )}
-
-                    {/* Table chunk for this page */}
-                    <div className="w-full">
-                      <table className="w-full text-left border-collapse min-w-full">
-                        {renderTableHeader()}
-                        <tbody>
-                          {pageRows.length > 0 ? pageRows.map((c, i) => {
-                            const students = parseStudents(c.students);
-                            let studentName = "";
-                            let studentGrade = "";
-                            let studentAdviser = c.adviser || "—";
-                            
-                            if (students.length > 0) {
-                              const s = students[0];
-                              studentName = `${s.lastName}, ${s.firstName}${s.middleInitial ? ` ${s.middleInitial}.` : ""}`;
-                              studentGrade = `${s.level.replace('Grade ', '')}-${s.section}`;
-                              studentAdviser = s.adviser || c.adviser || "—";
-                            } else {
-                              studentName = `${c.last_name}, ${c.first_name}${c.middle_initial ? ` ${c.middle_initial}.` : ""}`;
-                              studentGrade = `${c.level.replace('Grade ', '')}-${c.section}`;
-                              studentAdviser = c.adviser || "—";
-                            }
-                            
-                            return (
-                              <tr key={i} className="border-b border-gray-100 last:border-0 text-[12px] even:bg-[#FAFAFA]" style={{ pageBreakInside: 'avoid' }}>
-                                <td className="py-3 pr-2 pl-2 text-gray-500 font-sans font-bold">{globalStartIndex + i + 1}</td>
-                                <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{formatDate(c.date)}</td>
-                                <td className="py-3 pr-2 font-medium text-gray-900 font-sans">{studentName}</td>
-                                <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{studentGrade}</td>
-                                <td className="py-3 pr-2 text-gray-600 font-sans">{studentAdviser}</td>
-                                <td className="py-3 pr-2 text-gray-600 font-sans">{c.case}</td>
-                                <td className="py-3 pr-2 text-gray-600 font-sans max-w-[140px] break-words">{c.description || "—"}</td>
-                                <td className="py-3 pr-2 text-gray-600 font-sans max-w-[120px] break-words">{c.sanction || "—"}</td>
-                                <td style={{ padding: "12px 0", textAlign: "right", verticalAlign: "middle", fontFamily: "sans-serif" }}>
-                                  <span
-                                    style={{
-                                      ...getBadgeInlineStyle(c.progress),
-                                      display: "inline-block",
-                                      fontSize: "11px",
-                                      fontWeight: 700,
-                                      textTransform: "uppercase" as const,
-                                      letterSpacing: "0.05em",
-                                      whiteSpace: "nowrap",
-                                      lineHeight: "1",
-                                      verticalAlign: "middle",
-                                    }}
-                                  >
-                                    {c.progress}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          }) : (
-                            <tr>
-                              <td colSpan={9} className="py-8 text-center text-gray-500 text-sm font-sans italic">
-                                No cases found for this period.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {isLastPageChunk && !needsExtraPage && renderClosingBlock()}
                     
-                    {renderPageFooter(index + 1, totalPagesCount)}
+                    {renderPageFooter(index + 1, paginatedPages.length)}
                   </div>
                 );
               })}
-
-              {needsExtraPage && (
-                <div className="bg-white shadow-md print:shadow-none w-[297mm] h-[210mm] px-12 py-8 text-gray-800 font-serif relative" style={{ pageBreakAfter: 'always' }}>
-                  {renderSmallHeader()}
-                  {renderClosingBlock()}
-                  {renderPageFooter(totalPagesCount, totalPagesCount)}
-                </div>
-              )}
             </div>
           </div>
         </div>
