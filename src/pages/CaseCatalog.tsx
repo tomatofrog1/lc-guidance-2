@@ -77,6 +77,30 @@ const formatIncidentDate = (dateStr: string) => {
   });
 };
 
+const formatIncidentDateWithRelative = (dateStr: string) => {
+  if (!dateStr) return "—";
+  const parsed = new Date(dateStr);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return dateStr;
+  }
+
+  const dateFormatted = parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const relative = formatRelativeFiled(dateStr);
+
+  return (
+    <div className="flex flex-col leading-tight py-0.5">
+      <span className="font-bold text-on-surface text-[13px]">{dateFormatted}</span>
+      <span className="text-[11px] text-secondary mt-0.5">{relative.primary}</span>
+    </div>
+  );
+};
+
 const formatMonthFilter = (monthStr: string) => {
   if (!monthStr) return "";
   const parsed = new Date(`${monthStr}-01T00:00:00`);
@@ -211,6 +235,62 @@ const getRoleBadgeStyles = (role: string) => {
   return "text-gray-500 dark:text-gray-400";
 };
 
+const getRoleAvatarBgClass = (role?: string) => {
+  const normalized = role?.toLowerCase() || "";
+  if (normalized === "complainant") return "bg-green-600 dark:bg-green-500";
+  if (normalized === "reporter") return "bg-blue-600 dark:bg-blue-500";
+  if (normalized === "accused") return "bg-red-600 dark:bg-red-500";
+  if (normalized === "respondent") return "bg-purple-600 dark:bg-purple-500";
+  return "bg-gray-500 dark:bg-gray-650"; // default gray
+};
+
+const getInitials = (student: StudentInfo) => {
+  const first = student.firstName?.charAt(0)?.toUpperCase() || "";
+  const last = student.lastName?.charAt(0)?.toUpperCase() || "";
+  return `${first}${last}`;
+};
+
+const getAggregateStatusInfo = (groupCases: CaseRecord[]) => {
+  const statusCounts = new Map<string, number>();
+  groupCases.forEach(c => {
+    let status: string;
+    if (isReprimand(c)) {
+      status = "reprimand";
+    } else if (isClosed(c.progress)) {
+      status = "closed";
+    } else if (isResolved(c.progress)) {
+      status = "resolved";
+    } else {
+      status = "pending";
+    }
+    statusCounts.set(status, (statusCounts.get(status) || 0) + 1);
+  });
+  const entries = Array.from(statusCounts.entries());
+  if (entries.length === 1) {
+    const [status, count] = entries[0];
+    const displayMap: Record<string, string> = {
+      reprimand: "reprimanded",
+      resolved: "resolved",
+      closed: "closed",
+      pending: "pending",
+    };
+    return {
+      text: `${count} ${displayMap[status] || status}`,
+      badgeClass: `badge-${status}`,
+    };
+  }
+  const severityOrder = ["reprimand", "pending", "resolved", "closed"];
+  const sorted = [...entries].sort((a, b) =>
+    severityOrder.indexOf(a[0]) - severityOrder.indexOf(b[0])
+  );
+  const text = sorted.map(([s, count]) => `${count} ${s}`).join(", ");
+  const dominantStatus = sorted[0][0];
+  return {
+    text,
+    badgeClass: `badge-${dominantStatus}`,
+  };
+};
+
 export interface CaseGroup {
   groupId: string | null;
   cases: CaseRecord[];
@@ -222,7 +302,7 @@ export default function CaseCatalog() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"date_filed" | "date">("date_filed");
+  const [sortBy, setSortBy] = useState<"date_filed" | "date">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
   const [monthFilter, setMonthFilter] = useState("");
@@ -233,6 +313,7 @@ export default function CaseCatalog() {
   const [toastMessage, setToastMessage] = useState("");
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -296,6 +377,18 @@ export default function CaseCatalog() {
       setIsToastVisible(false);
       window.setTimeout(() => setToastMessage(""), 1000);
     }, 2800);
+  };
+
+  const toggleGroupExpanded = (groupId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
   };
 
   const stats = useMemo(() => {
@@ -1045,19 +1138,14 @@ export default function CaseCatalog() {
                 <th className="p-table-cell-padding font-semibold border-b border-surface-variant">ID</th>
                 <th
                   className="p-table-cell-padding font-semibold cursor-pointer select-none group border-b border-surface-variant"
-                  onClick={() => handleSort("date_filed")}
+                  onClick={() => handleSort("date")}
                 >
                   <div className="flex items-center gap-1 text-[11px] tracking-wider uppercase text-secondary">
-                    Filed
-                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${sortBy === "date_filed" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
-                      } ${sortBy === "date_filed" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
+                    Incident Date
+                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${sortBy === "date" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
+                      } ${sortBy === "date" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
                       arrow_upward
                     </span>
-                  </div>
-                </th>
-                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">
-                  <div className="text-[11px] tracking-wider uppercase text-secondary">
-                    Incident Date
                   </div>
                 </th>
                 <th className="p-table-cell-padding font-semibold border-b border-surface-variant">Student(s) Involved</th>
@@ -1070,7 +1158,7 @@ export default function CaseCatalog() {
             {isLoading && (
               <tbody className="font-body-md text-sm text-on-surface">
                 <tr>
-                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
+                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={7}>
                     Loading cases...
                   </td>
                 </tr>
@@ -1079,7 +1167,7 @@ export default function CaseCatalog() {
             {!isLoading && error && (
               <tbody className="font-body-md text-sm text-on-surface">
                 <tr>
-                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
+                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={7}>
                     Backend unavailable. Open with npm run tauri -- dev to load cases.
                   </td>
                 </tr>
@@ -1088,13 +1176,142 @@ export default function CaseCatalog() {
             {!isLoading && !error && filteredAndSortedGroups.length === 0 && (
               <tbody className="font-body-md text-sm text-on-surface">
                 <tr>
-                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={8}>
+                  <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={7}>
                     {isFilterModified ? "No results found." : "No records found."}
                   </td>
                 </tr>
               </tbody>
             )}
-            {!isLoading && !error && paginatedGroups.map((group) => (
+            {!isLoading && !error && paginatedGroups.map((group) => {
+              const isCollapsible = group.groupId !== null && group.cases.length >= 3;
+              const isExpanded = group.groupId ? expandedGroups.has(group.groupId) : false;
+
+              if (isCollapsible) {
+                const rep = group.cases[0];
+                const aggregateStatus = getAggregateStatusInfo(group.cases);
+                const headerBorderB = isExpanded ? "border-b border-b-surface-variant/40" : "border-b border-b-surface-variant";
+
+                return (
+                  <tbody key={group.groupId!} className="font-body-md text-sm text-on-surface">
+                    <tr
+                      className="catalog-page-enter cursor-pointer transition-colors group/row"
+                      onClick={() => toggleGroupExpanded(group.groupId!)}
+                      aria-expanded={isExpanded}
+                    >
+                      <td className={`p-table-cell-padding transition-colors duration-300 border-l-[3px] border-l-outline-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
+                        <span
+                          className="material-symbols-outlined text-[18px] text-secondary transition-transform duration-200 inline-block"
+                          style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                        >
+                          chevron_right
+                        </span>
+                      </td>
+                      <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
+                        {formatIncidentDateWithRelative(rep.date)}
+                      </td>
+                       <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
+                        <div className="flex items-center">
+                          {group.cases.map((c, i) => {
+                            const students = parseStudents(c.students);
+                            const student = students[0];
+                            if (!student) return null;
+                            return (
+                              <div
+                                key={c.id}
+                                className={`w-6 h-6 rounded-full ${getRoleAvatarBgClass(student.role)} text-white text-[10px] font-bold flex items-center justify-center border-2 border-surface shrink-0`}
+                                style={{ marginLeft: i === 0 ? 0 : -8, zIndex: group.cases.length - i, position: 'relative' }}
+                                title={`${student.firstName} ${student.lastName}`}
+                              >
+                                {getInitials(student)}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                      <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
+                        <div className="flex flex-col">
+                          <span className="text-[13px] font-bold text-on-surface">{rep.case}</span>
+                          {rep.title && (
+                            <span className="text-[11px] text-secondary mt-0.5 leading-tight">{rep.title}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className={`p-table-cell-padding transition-colors duration-300 text-center bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
+                        <span className={`${aggregateStatus.badgeClass} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center whitespace-nowrap`}>
+                          {aggregateStatus.text}
+                        </span>
+                      </td>
+                      <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}></td>
+                      <td className={`py-1 px-4 transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}></td>
+                    </tr>
+                    {isExpanded && group.cases.map((caseRecord, subIndex) => {
+                      const isLastSubRow = subIndex === group.cases.length - 1;
+                      const subBorderClass = isLastSubRow ? "border-b border-b-surface-variant" : "border-b border-b-surface-variant/40";
+                      return (
+                        <tr
+                          key={caseRecord.id}
+                          className="catalog-page-enter transition-colors cursor-pointer group/row"
+                          onClick={() => navigate(`/case/${caseRecord.id}`)}
+                        >
+                          <td className={`p-table-cell-padding transition-colors duration-300 border-l-[3px] border-l-outline-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
+                            <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
+                          </td>
+                          <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}></td>
+                          <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
+                            {(() => {
+                              const students = parseStudents(caseRecord.students);
+                              if (students.length === 0) return "—";
+                              const firstStudent = students[0];
+                              const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
+                              const role = firstStudent.role;
+                              return (
+                                <div className="flex flex-col gap-0.5 py-1">
+                                  <span className="font-bold text-on-surface leading-tight text-[13px]">{name}</span>
+                                  {role && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant' ? 'bg-green-500' : role.toLowerCase() === 'reporter' ? 'bg-blue-500' : role.toLowerCase() === 'accused' ? 'bg-red-500' : 'bg-purple-500'}`} />
+                                      <span className={`text-[11px] font-medium ${getRoleBadgeStyles(role)}`}>
+                                        {role}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                          <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}></td>
+                          <td className={`p-table-cell-padding transition-colors duration-300 text-center bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
+                            <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
+                          </td>
+                          <td className={`p-table-cell-padding transition-colors duration-300 text-on-surface-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
+                            {(() => {
+                              const students = parseStudents(caseRecord.students);
+                              if (students.length === 0) return "—";
+                              return students[0].adviser;
+                            })()}
+                          </td>
+                          <td className={`py-1 px-4 transition-colors duration-300 text-right bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsDeleteConfirmClosing(false);
+                                setDeleteConfirmText("");
+                                setDeleteConfirmId(caseRecord.id);
+                              }}
+                              className="text-secondary hover:text-error transition-all duration-500 p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
+                              title="Delete Record"
+                            >
+                              <span className="material-symbols-outlined text-[18px] transition-colors duration-500">delete</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                );
+              }
+
+              return (
               <tbody
                 key={group.groupId || group.cases[0].id}
                 className="font-body-md text-sm text-on-surface group/body"
@@ -1119,22 +1336,7 @@ export default function CaseCatalog() {
                       </td>
                       {isFirstInGroup && (
                         <td className={`p-table-cell-padding transition-colors duration-300 ${isGrouped ? "bg-surface-container-highest/20 group-hover/body:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${groupBorderClass}`} rowSpan={groupLength}>
-                          {(() => {
-                            const rel = formatRelativeFiled(caseRecord.date_filed);
-                            return (
-                              <div className="flex flex-col leading-tight py-0.5">
-                                <span className="font-semibold text-on-surface text-[13px]">{rel.primary}</span>
-                                {rel.secondary && (
-                                  <span className="text-[11px] text-secondary mt-0.5">{rel.secondary}</span>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </td>
-                      )}
-                      {isFirstInGroup && (
-                        <td className={`p-table-cell-padding transition-colors duration-300 font-bold text-on-surface ${isGrouped ? "bg-surface-container-highest/20 group-hover/body:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${groupBorderClass}`} rowSpan={groupLength}>
-                          {formatIncidentDate(caseRecord.date)}
+                          {formatIncidentDateWithRelative(caseRecord.date)}
                         </td>
                       )}
                       <td className={`p-table-cell-padding transition-colors duration-300 font-medium ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
@@ -1204,7 +1406,8 @@ export default function CaseCatalog() {
                   );
                 })}
               </tbody>
-            ))}
+              );
+            })}
           </table>
         </div>
 
